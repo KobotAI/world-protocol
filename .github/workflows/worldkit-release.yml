@@ -123,6 +123,8 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
             echo "${tag} already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$tag" -m "WorldKit ${RELEASE_VERSION}"
             git push origin "$tag"
           fi
