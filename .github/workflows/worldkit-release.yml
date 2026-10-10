@@ -95,7 +95,7 @@ jobs:
           DIST_TAG: ${{ inputs.dist_tag }}
         run: |
           set -euo pipefail
-          for package in spec server client testing; do
+          for package in core geo spec server client testing; do
             name="@worlddevkit/${package}"
             tarball=".worldkit-release/tarballs/worlddevkit-${package}-${RELEASE_VERSION}.tgz"
             if npm view "${name}@${RELEASE_VERSION}" version --json >/dev/null 2>&1; then

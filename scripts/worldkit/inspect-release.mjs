@@ -3,7 +3,7 @@
 import { access, readdir, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const packageNames = ['spec', 'server', 'client', 'testing']
+const packageNames = ['core', 'geo', 'spec', 'server', 'client', 'testing']
 const [version, inputArgument = '.worldkit-release/staged'] = process.argv.slice(2)
 if (!version) throw new Error('Usage: node scripts/worldkit/inspect-release.mjs <version> [staged-directory]')
 

@@ -3,7 +3,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-const packageNames = ['spec', 'server', 'client', 'testing']
+const packageNames = ['core', 'geo', 'spec', 'server', 'client', 'testing']
 const internalNames = new Set(packageNames.map((name) => `@worlddevkit/${name}`))
 const [version, outputArgument = '.worldkit-release/staged'] = process.argv.slice(2)
 
