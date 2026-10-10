@@ -1,0 +1,44 @@
+{
+  "name": "@worlddevkit/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fetch-based Level 1 conformance runner for World Protocol implementations.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KobotAI/world-protocol.git",
+    "directory": "packages/worldkit-testing"
+  },
+  "homepage": "https://github.com/KobotAI/world-protocol/tree/main/packages/worldkit-testing",
+  "bugs": "https://github.com/KobotAI/world-protocol/issues",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@worlddevkit/client": "workspace:*",
+    "@worlddevkit/spec": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

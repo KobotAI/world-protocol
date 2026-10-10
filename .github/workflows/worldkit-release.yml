@@ -1,0 +1,127 @@
+name: WorldKit Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact semver to stage or publish
+        required: true
+        type: string
+      dist_tag:
+        description: npm distribution tag
+        required: true
+        default: next
+        type: choice
+        options:
+          - next
+          - latest
+      publish:
+        description: Publish after validation
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: Type "publish <version>" when publish is enabled
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate publication confirmation
+        if: inputs.publish
+        env:
+          EXPECTED_CONFIRMATION: publish ${{ inputs.version }}
+          ACTUAL_CONFIRMATION: ${{ inputs.confirmation }}
+        run: test "$ACTUAL_CONFIRMATION" = "$EXPECTED_CONFIRMATION"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - name: Stage, inspect and pack release
+        run: |
+          node scripts/worldkit/stage-release.mjs "${{ inputs.version }}"
+          node scripts/worldkit/inspect-release.mjs "${{ inputs.version }}"
+          node scripts/worldkit/pack-release.mjs
+      - name: Verify packed artifacts from a clean consumer
+        run: node scripts/worldkit/verify-consumer.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worldkit-${{ inputs.version }}
+          path: .worldkit-release/tarballs/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: inputs.publish && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.21.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: worldkit-${{ inputs.version }}
+          path: .worldkit-release/tarballs
+      - name: Publish packages in dependency order
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          for package in spec server client testing; do
+            name="@worlddevkit/${package}"
+            tarball=".worldkit-release/tarballs/worlddevkit-${package}-${RELEASE_VERSION}.tgz"
+            if npm view "${name}@${RELEASE_VERSION}" version --json >/dev/null 2>&1; then
+              echo "${name}@${RELEASE_VERSION} already exists; leaving it unchanged"
+            else
+              npm publish "$tarball" --tag "$DIST_TAG"
+            fi
+            for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              if npm view "${name}@${RELEASE_VERSION}" version --json >/dev/null 2>&1; then
+                break
+              fi
+              if [ "$attempt" = 12 ]; then
+                echo "::error::${name}@${RELEASE_VERSION} did not become visible on npm"
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+      - name: Tag completed release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="worldkit-v${RELEASE_VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "${tag} already exists"
+          else
+            git tag -a "$tag" -m "WorldKit ${RELEASE_VERSION}"
+            git push origin "$tag"
+          fi

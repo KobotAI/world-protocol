@@ -1,0 +1,43 @@
+{
+  "name": "@worlddevkit/client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fetch-based, environment-neutral client for World Protocol worlds.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KobotAI/world-protocol.git",
+    "directory": "packages/worldkit-client"
+  },
+  "homepage": "https://github.com/KobotAI/world-protocol/tree/main/packages/worldkit-client",
+  "bugs": "https://github.com/KobotAI/world-protocol/issues",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@worlddevkit/spec": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "@types/node": "22.20.5"
+  }
+}

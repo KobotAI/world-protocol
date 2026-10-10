@@ -1,0 +1,16 @@
+{
+  "name": "worldkit-client-node-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@worlddevkit/client": "workspace:*"
+  },
+  "devDependencies": {}
+}
