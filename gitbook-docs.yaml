@@ -7,6 +7,7 @@ site:
       key: world
       title: World Protocol and WorldDevKit
       path: world
+      default: true
       children:
         - type: space
           key: worlddevkit
