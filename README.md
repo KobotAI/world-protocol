@@ -70,7 +70,7 @@ const handler = createWorldHandler({
 })
 ```
 
-See the [five-minute quickstart](docs/getting-started/quickstart.md), [Level 1 API reference](docs/reference/level-1-api.md), [OpenAPI 3.1 document](docs/reference/openapi.yaml), [coding-agent guide](docs/agents/build-a-world.md), package READMEs and [`examples/`](examples/README.md) for complete usage. Public documentation is published under `https://docs.kobotai.co/world` using `gitbook.yaml` and `SUMMARY.md`.
+See the [five-minute quickstart](docs/getting-started/quickstart.md), [Level 1 API reference](docs/reference/level-1-api.md), [OpenAPI 3.1 document](docs/reference/openapi.yaml), [coding-agent guide](docs/agents/build-a-world.md), package READMEs and [`examples/`](examples/README.md) for complete usage. Public documentation is published under `https://docs.kobotai.co/world` using `gitbook-docs.yaml`, `.gitbook.yaml`, and `SUMMARY.md`.
 
 ## Development
 
