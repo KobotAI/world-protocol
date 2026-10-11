@@ -4,7 +4,7 @@ import { mkdir, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 
-const packageNames = ['core', 'geo', 'spec', 'server', 'client', 'testing']
+const packageNames = ['core', 'geo', 'spec', 'server', 'client', 'testing', 'create-worlddevkit']
 const [inputArgument = '.worldkit-release/staged', outputArgument = '.worldkit-release/tarballs'] = process.argv.slice(2)
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const inputRoot = resolve(repositoryRoot, inputArgument)

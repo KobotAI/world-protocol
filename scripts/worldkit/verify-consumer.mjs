@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 
@@ -8,11 +8,14 @@ const [tarballArgument = '.worldkit-release/tarballs', consumerArgument = '.worl
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const tarballRoot = resolve(repositoryRoot, tarballArgument)
 const consumerRoot = resolve(repositoryRoot, consumerArgument)
-const tarballs = (await readdir(tarballRoot))
+const packageNames = ['core', 'geo', 'spec', 'server', 'client', 'testing']
+const tarballFiles = (await readdir(tarballRoot))
   .filter((name) => name.endsWith('.tgz'))
   .sort()
-  .map((name) => resolve(tarballRoot, name))
-if (tarballs.length !== 6) throw new Error(`Expected six WorldKit tarballs, found ${tarballs.length}`)
+if (tarballFiles.length !== 7) throw new Error(`Expected seven WorldKit tarballs, found ${tarballFiles.length}`)
+const tarballs = tarballFiles.map((name) => resolve(tarballRoot, name))
+const cliTarball = resolveTarball('create-worlddevkit-')
+const libraryTarballs = Object.fromEntries(packageNames.map((name) => [name, resolveTarball(`worlddevkit-${name}-`)]))
 
 await rm(consumerRoot, { recursive: true, force: true })
 await mkdir(consumerRoot, { recursive: true })
@@ -40,6 +43,38 @@ await run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', 'typ
 await run('node', ['smoke.mjs'], consumerRoot)
 await run(resolve(consumerRoot, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], consumerRoot)
 console.log('Clean WorldKit consumer passed TypeScript declaration compilation')
+
+const generatedProjectName = 'generated-world'
+const generatedProjectRoot = resolve(consumerRoot, generatedProjectName)
+await run(resolve(consumerRoot, 'node_modules/.bin/create-worlddevkit'), [generatedProjectName], consumerRoot)
+await Promise.all([
+  access(resolve(generatedProjectRoot, '.gitignore')),
+  access(resolve(generatedProjectRoot, '.env.example')),
+])
+
+const generatedManifestPath = resolve(generatedProjectRoot, 'package.json')
+const generatedManifest = JSON.parse(await readFile(generatedManifestPath, 'utf8'))
+for (const shortName of packageNames) {
+  const packageName = `@worlddevkit/${shortName}`
+  const localTarball = `file:${libraryTarballs[shortName]}`
+  if (packageName in (generatedManifest.dependencies ?? {})) {
+    generatedManifest.dependencies[packageName] = localTarball
+  } else {
+    generatedManifest.devDependencies ??= {}
+    generatedManifest.devDependencies[packageName] = localTarball
+  }
+}
+await writeFile(generatedManifestPath, `${JSON.stringify(generatedManifest, null, 2)}\n`)
+await run('npm', ['install', '--no-audit', '--no-fund'], generatedProjectRoot)
+await run('npm', ['run', 'typecheck'], generatedProjectRoot)
+await run('npm', ['test'], generatedProjectRoot)
+console.log(`Packed ${cliTarball} generated a clean project that passed typecheck and Level 1 conformance`)
+
+function resolveTarball(prefix) {
+  const matches = tarballFiles.filter((name) => name.startsWith(prefix))
+  if (matches.length !== 1) throw new Error(`Expected one tarball matching ${prefix}, found ${matches.length}`)
+  return resolve(tarballRoot, matches[0])
+}
 
 function run(command, args, cwd) {
   return new Promise((resolvePromise, reject) => {

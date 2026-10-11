@@ -114,6 +114,24 @@ jobs:
               sleep 5
             done
           done
+
+          name="create-worlddevkit"
+          tarball=".worldkit-release/tarballs/create-worlddevkit-${RELEASE_VERSION}.tgz"
+          if npm view "${name}@${RELEASE_VERSION}" version --json >/dev/null 2>&1; then
+            echo "${name}@${RELEASE_VERSION} already exists; leaving it unchanged"
+          else
+            npm publish "$tarball" --access public --tag "$DIST_TAG"
+          fi
+          for attempt in $(seq 1 60); do
+            if npm view "${name}@${RELEASE_VERSION}" version --json >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              echo "::error::${name}@${RELEASE_VERSION} did not become visible on npm after 5 minutes"
+              exit 1
+            fi
+            sleep 5
+          done
       - name: Tag completed release
         env:
           RELEASE_VERSION: ${{ inputs.version }}

@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "pnpm build && pnpm --dir packages/worldkit-core test && pnpm --dir packages/worldkit-geo test && pnpm --dir packages/worldkit-spec test && pnpm --dir packages/worldkit-server test && pnpm --dir packages/worldkit-client test && pnpm --dir packages/worldkit-testing test && pnpm --dir examples/minimal-world test",
+    "test": "pnpm build && pnpm --dir packages/worldkit-core test && pnpm --dir packages/worldkit-geo test && pnpm --dir packages/worldkit-spec test && pnpm --dir packages/worldkit-server test && pnpm --dir packages/worldkit-client test && pnpm --dir packages/worldkit-testing test && pnpm --dir packages/create-worlddevkit test && pnpm --dir examples/minimal-world test",
     "typecheck": "pnpm build && pnpm --dir packages/worldkit-core typecheck && pnpm --dir packages/worldkit-geo typecheck && pnpm --dir packages/worldkit-spec typecheck && pnpm --dir packages/worldkit-server typecheck && pnpm --dir packages/worldkit-client typecheck && pnpm --dir packages/worldkit-testing typecheck",
     "build": "pnpm --dir packages/worldkit-core build && pnpm --dir packages/worldkit-geo build && pnpm --dir packages/worldkit-spec build && pnpm --dir packages/worldkit-server build && pnpm --dir packages/worldkit-client build && pnpm --dir packages/worldkit-testing build",
     "quickstart": "pnpm build && pnpm --dir examples/minimal-world start",

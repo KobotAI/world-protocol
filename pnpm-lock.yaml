@@ -27,6 +27,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/worldkit-testing
 
+  packages/create-worlddevkit: {}
+
   packages/worldkit-client:
     dependencies:
       '@worlddevkit/spec':

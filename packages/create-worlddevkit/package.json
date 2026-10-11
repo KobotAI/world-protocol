@@ -1,0 +1,30 @@
+{
+  "name": "create-worlddevkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Create a credential-free WorldDevKit Level 1 TypeScript world.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KobotAI/world-protocol.git",
+    "directory": "packages/create-worlddevkit"
+  },
+  "homepage": "https://github.com/KobotAI/world-protocol/tree/main/packages/create-worlddevkit",
+  "bugs": "https://github.com/KobotAI/world-protocol/issues",
+  "type": "module",
+  "bin": {
+    "create-worlddevkit": "./bin/create-worlddevkit.js"
+  },
+  "files": [
+    "bin",
+    "template",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
