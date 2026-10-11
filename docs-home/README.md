@@ -3,3 +3,15 @@
 Developer documentation for the World Protocol and WorldDevKit is available under `/world`.
 
 [Open the WorldDevKit documentation](/world)
+
+## Build a world with an AI coding agent
+
+Give your coding agent a product brief and the complete WorldDevKit prompt:
+
+```text
+Build <PRODUCT IDEA>.
+
+https://docs.kobotai.co/llms-full.txt
+```
+
+The agent should implement, run, and validate a complete browsable world—not merely return a tutorial or protocol API sample.
