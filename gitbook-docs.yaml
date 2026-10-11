@@ -4,10 +4,23 @@ site:
   title: KobotAI Documentation
   structure:
     - type: section
+      key: home
+      title: KobotAI Documentation
+      path: home
+      default: true
+      children:
+        - type: space
+          key: docs-home
+          title: Documentation
+          path: docs
+          default: true
+          content:
+            directory: ./docs-home
+            language: en
+    - type: section
       key: world
       title: World Protocol and WorldDevKit
       path: world
-      default: true
       children:
         - type: space
           key: worlddevkit
