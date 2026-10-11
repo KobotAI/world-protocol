@@ -15,8 +15,9 @@ Configure the starter with:
 Use these platform commands:
 
 ```text
-Install: pnpm install --frozen-lockfile && pnpm build
-Start: pnpm --dir examples/minimal-world start
+Install: npm ci
+Build: npm run build
+Start: node dist/src/server.js
 Health check: /api/world/v0
 ```
 
@@ -37,6 +38,12 @@ https://your-world.example/.well-known/world.json
 
 ```sh
 curl https://your-world.example/.well-known/world.json
+curl 'https://your-world.example/api/world/v0/entities/wp%3Aplace'
+```
+
+Protocol repository contributors can additionally run:
+
+```sh
 node scripts/worldkit/check-live-level1.mjs https://your-world.example
 ```
 

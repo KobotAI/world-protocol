@@ -18,10 +18,10 @@ console.log(report.checks)
 
 `assertLevel1Conformance` throws when any check fails and returns the complete report when all checks pass.
 
-The starter tests without opening a network port:
+A generated starter tests without opening a network port:
 
 ```sh
-pnpm --dir examples/minimal-world test
+npm test
 ```
 
 To test a deployed world from this repository, manually run the **Remote Level 1 conformance** GitHub workflow and supply its public origin. The workflow has no built-in production URL.

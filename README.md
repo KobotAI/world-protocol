@@ -14,6 +14,25 @@ The Level 1 release focuses on public discovery and entity reads. It gives world
 | `@worlddevkit/testing` | Level 1 conformance runner for world implementations |
 | `@worlddevkit/core` | Framework-neutral entities and money values |
 | `@worlddevkit/geo` | Privacy-safe public location projection |
+| `create-worlddevkit` | Credential-free TypeScript world initializer |
+
+## Create a world
+
+Requires Node.js 20 or newer. No account, credentials, database, or Docker are required.
+
+```sh
+npm create worlddevkit@latest my-world
+cd my-world
+npm install
+npm run dev
+```
+
+Then validate the generated Level 1 world:
+
+```sh
+npm run typecheck
+npm test
+```
 
 ## Install
 

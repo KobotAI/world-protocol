@@ -3,7 +3,8 @@
 Canonical documentation: https://docs.kobotai.co/world
 Public source: https://github.com/KobotAI/world-protocol
 Protocol version: world/0.1
-Package version: 0.1.1
+Library package version: 0.1.1
+Initializer version: create-worlddevkit@0.1.2
 Runtime: Node.js 20+
 
 ## Purpose
@@ -20,8 +21,32 @@ The starter is local-first, credential-free, database-free, and Docker-free. Add
 - @worlddevkit/testing: reusable Level 1 conformance checks.
 - @worlddevkit/core: framework-neutral entities and money values.
 - @worlddevkit/geo: privacy-safe public location projection.
+- create-worlddevkit: dependency-free project initializer published for `npm create worlddevkit`.
 
-## Run the reference starter
+## Create a world
+
+```sh
+npm create worlddevkit@latest my-world
+cd my-world
+npm install
+npm run dev
+```
+
+The generated world listens at http://localhost:8787. Validate it with:
+
+```sh
+npm run typecheck
+npm test
+```
+
+Relevant files:
+
+- src/world.ts: discovery, fixtures, source, and Fetch-compatible handler.
+- src/server.ts: Node HTTP adapter; normally leave unchanged.
+- test/conformance.test.ts: Level 1 compatibility test.
+- AGENTS.md: project-specific instructions for coding agents.
+
+For protocol development or the reference examples instead, clone the public repository:
 
 ```sh
 git clone https://github.com/KobotAI/world-protocol.git
@@ -31,18 +56,7 @@ pnpm install --frozen-lockfile
 pnpm quickstart
 ```
 
-The world listens at http://localhost:8787. In another terminal:
-
-```sh
-pnpm --dir examples/client-node quickstart
-```
-
-Relevant files:
-
-- examples/minimal-world/src/world.js: discovery, fixtures, source, and Fetch-compatible handler.
-- examples/minimal-world/src/server.js: Node HTTP adapter; normally leave unchanged.
-- examples/minimal-world/test/conformance.test.js: compatibility test.
-- examples/client-node/src/quickstart.js: minimal external client.
+The repository also includes `examples/client-node` as a minimal external client.
 
 ## Discovery contract
 
@@ -154,16 +168,16 @@ Use the typed WorldDevKit error classes for non-2xx handling. Do not hardcode th
 
 ## Agent implementation procedure
 
-1. Read AGENTS.md and docs/agents/build-a-world.md.
-2. Modify examples/minimal-world/src/world.js.
-3. Rename the world and define entityTypes.
+1. Read `AGENTS.md` and `README.md`.
+2. Modify `src/world.ts`.
+3. Rename the world and define `entityTypes`.
 4. Replace fixtures with representative public entities.
-5. Implement source.list and source.get.
-6. Preserve the server adapter, discovery route, API root, pagination, and wp:discover.
+5. Implement `source.list` and `source.get`.
+6. Preserve the server adapter, discovery route, API root, pagination, and `wp:discover`.
 7. Keep public IDs stable.
 8. Do not add a database, auth, Docker, framework, or cloud service unless requested.
-9. Run pnpm test and pnpm typecheck.
-10. Run the server and client quickstart end to end.
+9. Run `npm run typecheck` and `npm test`.
+10. Run `npm run dev` and verify discovery and entity reads end to end.
 
 ## Deployment
 
@@ -177,7 +191,7 @@ WORLD_URL=https://your-world.example
 
 WORLD_URL must be the externally reachable HTTPS origin. Never advertise localhost, 0.0.0.0, a private IP, or a container address in production discovery. Route both /.well-known/world.json and /api/world/v0/* to the process. TLS can terminate at the platform or reverse proxy.
 
-Verify a deployed world explicitly:
+Verify the deployed discovery document and public reads against the externally reachable HTTPS origin. Repository contributors can also run:
 
 ```sh
 node scripts/worldkit/check-live-level1.mjs https://your-world.example
@@ -186,6 +200,16 @@ node scripts/worldkit/check-live-level1.mjs https://your-world.example
 Remote conformance has no implicit production target.
 
 ## Required validation
+
+For a generated world:
+
+```sh
+npm install
+npm run typecheck
+npm test
+```
+
+For protocol repository contributors:
 
 ```sh
 pnpm install --frozen-lockfile

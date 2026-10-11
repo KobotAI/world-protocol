@@ -36,4 +36,8 @@ const handler = createWorldHandler({
 
 Mount `handler(request)` at the API endpoint declared in the discovery document and serve `world` as JSON from `/.well-known/world.json`.
 
-For an executable Node HTTP adapter, in-memory fixture and conformance test, use [`examples/minimal-world`](../../examples/minimal-world/README.md).
+For an executable Node HTTP adapter, in-memory fixtures, and conformance tests, generate a complete TypeScript starter:
+
+```sh
+npm create worlddevkit@latest my-world
+```

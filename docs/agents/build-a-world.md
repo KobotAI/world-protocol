@@ -1,21 +1,29 @@
 # Build a world with a coding agent
 
-The minimal starter is intentionally small enough for a coding agent to change safely. It runs locally without credentials, a database, or Docker.
+The generated TypeScript starter is intentionally small enough for a coding agent to change safely. It runs locally without credentials, a database, or Docker.
+
+Create it before opening the directory in Claude Code, Zed, ChatGPT, Codex, or another coding agent:
+
+```sh
+npm create worlddevkit@latest my-world
+cd my-world
+npm install
+```
 
 ## Deterministic workflow
 
 Ask the agent to do these steps in order:
 
-1. Read `AGENTS.md` and this guide.
-2. Use `examples/minimal-world` as the implementation.
-3. Rename the world in `src/world.js`.
+1. Read the generated `AGENTS.md` and this guide.
+2. Use `src/world.ts` as the implementation.
+3. Rename the world in `src/world.ts`.
 4. Choose the public entity types and update `discovery.entityTypes`.
 5. Replace the fixture entities while preserving the entity envelope: `ref`, `version`, `updatedAt`, `visibility`, `attributes`, `relationships`, and `capabilities`.
 6. Implement `source.list(type)` and `source.get(type, id)`.
-7. Leave the HTTP adapter in `src/server.js` unchanged.
+7. Leave the HTTP adapter in `src/server.ts` unchanged.
 8. Preserve `/.well-known/world.json`, the advertised API endpoint, opaque pagination, and `wp:discover`.
 9. Add or update conformance tests.
-10. Run `pnpm test` and `pnpm typecheck`.
+10. Run `npm run typecheck` and `npm test`.
 11. Deploy with `WORLD_URL`, `HOST=0.0.0.0`, and the platform-provided `PORT`.
 12. Run remote conformance against the public HTTPS origin.
 
@@ -24,9 +32,9 @@ Do not add persistence or authentication until the product requires them. First 
 ## Copyable prompt
 
 ```text
-Read AGENTS.md, docs/getting-started/quickstart.md, and docs/agents/build-a-world.md.
+Read AGENTS.md.
 
-Turn examples/minimal-world into a World Protocol Level 1 world named "<WORLD NAME>" for "<PRODUCT DESCRIPTION>".
+Turn this generated project into a World Protocol Level 1 world named "<WORLD NAME>" for "<PRODUCT DESCRIPTION>".
 
 Requirements:
 - Use only public @worlddevkit/* APIs.
@@ -38,7 +46,7 @@ Requirements:
 - Do not add a database, authentication, Docker, or cloud-specific code.
 - Production discovery must use WORLD_URL; never advertise localhost, 0.0.0.0, or a container address in production.
 - Add or update conformance tests.
-- Run pnpm test and pnpm typecheck and report exact results.
+- Run npm run typecheck and npm test and report exact results.
 ```
 
 ## Local verification
@@ -46,14 +54,15 @@ Requirements:
 Start the world:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm quickstart
+npm install
+npm run dev
 ```
 
 Query it from another terminal:
 
 ```sh
-pnpm --dir examples/client-node quickstart
+curl http://localhost:8787/.well-known/world.json
+curl 'http://localhost:8787/api/world/v0/entities/wp%3Aplace'
 ```
 
 ## Deployment contract
