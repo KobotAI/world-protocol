@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve World Protocol and WorldKit.
+Thanks for helping improve World Protocol and WorldDevKit.
 
 ## Development
 

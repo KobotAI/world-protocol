@@ -1,7 +1,11 @@
 import { runLevel1Conformance } from '../../packages/worldkit-testing/dist/index.js'
 
-const world = process.argv[2] ?? 'https://life.kobotai.co'
+const world = process.argv[2] ?? process.env.WORLD_URL
 const timeoutMs = Number.parseInt(process.env.WORLDKIT_CONFORMANCE_TIMEOUT_MS ?? '600000', 10)
+
+if (!world) {
+  throw new Error('Pass a world origin as the first argument or set WORLD_URL')
+}
 
 if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
   throw new Error('WORLDKIT_CONFORMANCE_TIMEOUT_MS must be a positive integer')

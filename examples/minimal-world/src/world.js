@@ -1,14 +1,17 @@
 import { createMemoryRateLimiter, createWorldHandler } from '@worlddevkit/server'
 import { WORLD_PROTOCOL_VERSION } from '@worlddevkit/spec'
 
-const WORLD_ID = 'https://minimal-world.example'
+const WORLD_ID = process.env.WORLD_URL ?? 'https://minimal-world.example'
+const API_URL = process.env.WORLD_URL
+  ? new URL('/api/world/v0', process.env.WORLD_URL).href
+  : 'http://localhost:8787/api/world/v0'
 
 export const discovery = Object.freeze({
   protocol: WORLD_PROTOCOL_VERSION,
   id: WORLD_ID,
   name: 'Minimal Synthetic World',
   description: 'A credential-free, in-memory World Protocol Level 1 example.',
-  endpoints: { api: 'http://localhost:8787/api/world/v0' },
+  endpoints: { api: API_URL },
   entityTypes: ['wp:place'],
   actions: ['wp:discover'],
 })

@@ -1,22 +1,12 @@
-name: Live Level 1 conformance
+name: Remote Level 1 conformance
 
 on:
   workflow_dispatch:
     inputs:
       world:
-        description: World origin to test
+        description: Public World Protocol origin to test
         required: true
-        default: https://life.kobotai.co
-  schedule:
-    - cron: '17 5 * * *'
-  push:
-    branches: [main]
-    paths:
-      - packages/worldkit-client/**
-      - packages/worldkit-spec/**
-      - packages/worldkit-testing/**
-      - scripts/worldkit/check-live-level1.mjs
-      - .github/workflows/live-level1-conformance.yml
+        type: string
 
 permissions:
   contents: read
@@ -35,10 +25,14 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build conformance runner
+      - name: Build WorldDevKit
         run: pnpm build
-      - name: Check live World Protocol Level 1 conformance
+      - name: Run documented client quickstart
         env:
-          WORLD_URL: ${{ inputs.world || 'https://life.kobotai.co' }}
+          WORLD_URL: ${{ inputs.world }}
+        run: pnpm --dir examples/client-node quickstart -- "$WORLD_URL"
+      - name: Check remote World Protocol Level 1 conformance
+        env:
+          WORLD_URL: ${{ inputs.world }}
           WORLDKIT_CONFORMANCE_TIMEOUT_MS: '600000'
         run: node scripts/worldkit/check-live-level1.mjs "$WORLD_URL"

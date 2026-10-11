@@ -1,0 +1,39 @@
+# World Protocol and WorldDevKit
+
+Canonical docs: https://docs.kobotai.co/world
+Source: https://github.com/KobotAI/world-protocol
+Protocol level: Level 1
+Protocol version: world/0.1
+Package version: 0.1.1
+Runtime: Node.js 20+
+
+WorldDevKit packages:
+- @worlddevkit/spec
+- @worlddevkit/server
+- @worlddevkit/client
+- @worlddevkit/testing
+- @worlddevkit/core
+- @worlddevkit/geo
+
+Local quickstart:
+1. git clone https://github.com/KobotAI/world-protocol.git
+2. cd world-protocol
+3. corepack enable
+4. pnpm install --frozen-lockfile
+5. pnpm quickstart
+6. In another terminal: pnpm --dir examples/client-node quickstart
+
+Agent guide: https://docs.kobotai.co/world/docs/agents/build-a-world
+Quickstart: https://docs.kobotai.co/world/docs/getting-started/quickstart
+Discovery: https://docs.kobotai.co/world/docs/getting-started/discovery
+Deployment: https://docs.kobotai.co/world/docs/guides/deploy-a-world
+Level 1 API: https://docs.kobotai.co/world/docs/reference/level-1-api
+OpenAPI: https://docs.kobotai.co/world/docs/reference/openapi.yaml
+
+Rules:
+- Discovery is GET /.well-known/world.json.
+- Discover the API endpoint; do not hardcode it in clients.
+- Start from examples/minimal-world.
+- Local default is http://localhost:8787.
+- Production identity is supplied with WORLD_URL.
+- No credentials, database, or Docker are required for the starter.

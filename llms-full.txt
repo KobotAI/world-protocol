@@ -1,0 +1,197 @@
+# World Protocol Level 1 / WorldDevKit agent context
+
+Canonical documentation: https://docs.kobotai.co/world
+Public source: https://github.com/KobotAI/world-protocol
+Protocol version: world/0.1
+Package version: 0.1.1
+Runtime: Node.js 20+
+
+## Purpose
+
+World Protocol lets independent worlds expose public entities through one discovery and read contract. WorldDevKit is the framework-neutral TypeScript implementation. A Level 1 world supports discovery, public entity list/get, opaque-cursor pagination, and the canonical wp:discover action.
+
+The starter is local-first, credential-free, database-free, and Docker-free. Add persistence or authentication only when explicitly required.
+
+## Packages
+
+- @worlddevkit/spec: protocol TypeScript contracts, constants, and dependency-free JSON Schemas.
+- @worlddevkit/server: Fetch API world handler, pagination, CORS, protocol errors, and optional rate limiting.
+- @worlddevkit/client: discovery, connection, typed reads, pagination, actions, and HTTP errors.
+- @worlddevkit/testing: reusable Level 1 conformance checks.
+- @worlddevkit/core: framework-neutral entities and money values.
+- @worlddevkit/geo: privacy-safe public location projection.
+
+## Run the reference starter
+
+```sh
+git clone https://github.com/KobotAI/world-protocol.git
+cd world-protocol
+corepack enable
+pnpm install --frozen-lockfile
+pnpm quickstart
+```
+
+The world listens at http://localhost:8787. In another terminal:
+
+```sh
+pnpm --dir examples/client-node quickstart
+```
+
+Relevant files:
+
+- examples/minimal-world/src/world.js: discovery, fixtures, source, and Fetch-compatible handler.
+- examples/minimal-world/src/server.js: Node HTTP adapter; normally leave unchanged.
+- examples/minimal-world/test/conformance.test.js: compatibility test.
+- examples/client-node/src/quickstart.js: minimal external client.
+
+## Discovery contract
+
+A world must serve GET /.well-known/world.json. The response identifies the protocol, world, public API endpoint, entity types, and actions. Representative shape:
+
+```json
+{
+  "protocol": "world/0.1",
+  "id": "https://your-world.example",
+  "name": "Example World",
+  "description": "A public world.",
+  "endpoints": {
+    "api": "https://your-world.example/api/world/v0"
+  },
+  "entityTypes": ["wp:place"],
+  "actions": ["wp:discover"]
+}
+```
+
+Clients must fetch discovery and use endpoints.api instead of assuming an API path.
+
+## Entity contract
+
+Every public entity has a stable reference and envelope:
+
+```json
+{
+  "ref": {
+    "world": "https://your-world.example",
+    "type": "wp:place",
+    "id": "central-garden"
+  },
+  "version": 1,
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "visibility": "public",
+  "attributes": {
+    "name": "Central Garden"
+  },
+  "relationships": [],
+  "capabilities": []
+}
+```
+
+Keep ref.world consistent with discovery.id. Keep type listed in discovery.entityTypes. IDs are opaque and must remain stable after publication. Increment version when observable entity data changes. Return null from source.get when an entity does not exist.
+
+## Minimal server pattern
+
+```js
+import { createMemoryRateLimiter, createWorldHandler } from '@worlddevkit/server'
+import { WORLD_PROTOCOL_VERSION } from '@worlddevkit/spec'
+
+const WORLD_ID = process.env.WORLD_URL ?? 'https://minimal-world.example'
+const API_URL = process.env.WORLD_URL
+  ? new URL('/api/world/v0', process.env.WORLD_URL).href
+  : 'http://localhost:8787/api/world/v0'
+
+const discovery = {
+  protocol: WORLD_PROTOCOL_VERSION,
+  id: WORLD_ID,
+  name: 'Example World',
+  endpoints: { api: API_URL },
+  entityTypes: ['wp:place'],
+  actions: ['wp:discover'],
+}
+
+const source = {
+  async list(type) {
+    return type === 'wp:place' ? places : []
+  },
+  async get(type, id) {
+    return type === 'wp:place'
+      ? places.find((entity) => entity.ref.id === id) ?? null
+      : null
+  },
+}
+
+const handler = createWorldHandler({
+  world: discovery,
+  source,
+  rateLimiter: createMemoryRateLimiter({ limit: 60, windowMs: 60_000 }),
+  cors: '*',
+  maxPageSize: 50,
+})
+```
+
+The Node adapter must serve discovery at /.well-known/world.json and pass other requests to the handler.
+
+## Level 1 routes
+
+- GET /.well-known/world.json: discovery document.
+- GET /api/world/v0: API discovery metadata.
+- GET /api/world/v0/entities/{type}: paginated public entity list.
+- GET /api/world/v0/entities/{type}/{id}: one public entity.
+- POST /api/world/v0/actions/wp%3Adiscover: canonical discovery action.
+
+Treat pagination cursors as opaque. Clients should follow returned cursors rather than parse or construct them.
+
+## Minimal client pattern
+
+```js
+import { WorldClient } from '@worlddevkit/client'
+
+const client = await WorldClient.connect('http://localhost:8787')
+const page = await client.listEntities('wp:place', { limit: 20 })
+const entity = await client.getEntity('wp:place', page.items[0].ref.id)
+```
+
+Use the typed WorldDevKit error classes for non-2xx handling. Do not hardcode the API endpoint.
+
+## Agent implementation procedure
+
+1. Read AGENTS.md and docs/agents/build-a-world.md.
+2. Modify examples/minimal-world/src/world.js.
+3. Rename the world and define entityTypes.
+4. Replace fixtures with representative public entities.
+5. Implement source.list and source.get.
+6. Preserve the server adapter, discovery route, API root, pagination, and wp:discover.
+7. Keep public IDs stable.
+8. Do not add a database, auth, Docker, framework, or cloud service unless requested.
+9. Run pnpm test and pnpm typecheck.
+10. Run the server and client quickstart end to end.
+
+## Deployment
+
+Use a Node.js 20+ host. Configure:
+
+```text
+HOST=0.0.0.0
+PORT=<platform-provided port>
+WORLD_URL=https://your-world.example
+```
+
+WORLD_URL must be the externally reachable HTTPS origin. Never advertise localhost, 0.0.0.0, a private IP, or a container address in production discovery. Route both /.well-known/world.json and /api/world/v0/* to the process. TLS can terminate at the platform or reverse proxy.
+
+Verify a deployed world explicitly:
+
+```sh
+node scripts/worldkit/check-live-level1.mjs https://your-world.example
+```
+
+Remote conformance has no implicit production target.
+
+## Required validation
+
+```sh
+pnpm install --frozen-lockfile
+pnpm test
+pnpm typecheck
+pnpm --dir examples/minimal-world test
+```
+
+No local Docker is required or expected.

@@ -10,7 +10,7 @@ Fetch-based ESM client for discovering and reading any World Protocol Level 1 wo
 ## Install
 
 ```sh
-npm install @worlddevkit/client@^0.1.0
+npm install @worlddevkit/client@^0.1.1
 ```
 
 ## Connect and read

@@ -1,0 +1,425 @@
+openapi: 3.1.0
+info:
+  title: World Protocol Level 1 API
+  version: 0.1.1
+  description: >-
+    Discovery, entity reads and discovery actions for a World Protocol Level 1
+    implementation. Clients should discover the advertised API endpoint from
+    /.well-known/world.json instead of hardcoding its path.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+externalDocs:
+  description: World Protocol documentation
+  url: https://github.com/KobotAI/world-protocol
+servers:
+  - url: http://localhost:8787
+    description: Local starter world
+  - url: https://your-world.example
+    description: Your deployed world
+security: []
+paths:
+  /.well-known/world.json:
+    get:
+      operationId: discoverWorld
+      summary: Read the world discovery document
+      tags: [Discovery]
+      responses:
+        '200':
+          description: World capabilities and advertised endpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorldDiscoveryDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/world/v0:
+    get:
+      operationId: getWorldApiDocument
+      summary: Read discovery metadata from the advertised API root
+      tags: [Discovery]
+      responses:
+        '200':
+          description: World capabilities and advertised endpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorldDiscoveryDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/TemporarilyUnavailable'
+  /api/world/v0/entities/{type}:
+    get:
+      operationId: listEntities
+      summary: List entities of a supported type
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/EntityType'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: One page of entities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEntityCollection'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: The entity type is not advertised by this world
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+        '503':
+          $ref: '#/components/responses/TemporarilyUnavailable'
+  /api/world/v0/entities/{type}/{id}:
+    get:
+      operationId: getEntity
+      summary: Get one entity by type and ID
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/EntityType'
+        - name: id
+          in: path
+          required: true
+          description: Entity ID. Treat it as an opaque string.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entity envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityEnvelope'
+        '404':
+          description: No matching entity exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+        '503':
+          $ref: '#/components/responses/TemporarilyUnavailable'
+  /api/world/v0/actions/wp:discover:
+    post:
+      operationId: discoverEntities
+      summary: Search across advertised entity types
+      tags: [Actions]
+      description: >-
+        Colons in the action path may be URL-encoded as %3A. The response wraps
+        the paginated result in an output property.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [input]
+              properties:
+                input:
+                  $ref: '#/components/schemas/DiscoverQuery'
+      responses:
+        '200':
+          description: Matching entities
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [output]
+                properties:
+                  output:
+                    $ref: '#/components/schemas/PaginatedEntityCollection'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          description: Discovery rate limit exceeded
+          headers:
+            Retry-After:
+              description: Seconds until another discovery request should be attempted
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolError'
+        '503':
+          $ref: '#/components/responses/TemporarilyUnavailable'
+components:
+  parameters:
+    EntityType:
+      name: type
+      in: path
+      required: true
+      description: An entity type advertised by the discovery document, such as wp:store.
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor returned by the preceding page.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Requested page size. The server caps values at 50.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+  responses:
+    NotFound:
+      description: The requested route does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProtocolError'
+    InvalidRequest:
+      description: Invalid JSON, cursor, limit or action input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProtocolError'
+    TemporarilyUnavailable:
+      description: The world cannot currently serve the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProtocolError'
+  schemas:
+    WorldDiscoveryDocument:
+      type: object
+      required: [protocol, id, name, endpoints, entityTypes]
+      properties:
+        protocol:
+          type: string
+          const: world/0.1
+        id:
+          type: string
+          format: uri
+        name:
+          type: string
+        description:
+          type: string
+        endpoints:
+          type: object
+          required: [api]
+          additionalProperties:
+            type: string
+            format: uri
+          properties:
+            api:
+              type: string
+              format: uri
+            events:
+              type: string
+              format: uri
+            subscriptions:
+              type: string
+              format: uri
+            authorization:
+              type: string
+              format: uri
+            token:
+              type: string
+              format: uri
+            jwks:
+              type: string
+              format: uri
+            mcp:
+              type: string
+              format: uri
+        entityTypes:
+          type: array
+          items:
+            type: string
+        events:
+          type: array
+          items:
+            type: string
+        actions:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: array
+          items:
+            type: string
+        layers:
+          type: array
+          items:
+            type: string
+        currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorldCurrency'
+    WorldCurrency:
+      type: object
+      additionalProperties: false
+      required: [code, settlement]
+      properties:
+        code:
+          type: string
+        settlement:
+          type: string
+          enum: [fiat, virtual]
+    EntityRef:
+      type: object
+      additionalProperties: false
+      required: [world, type, id]
+      properties:
+        world:
+          type: string
+          format: uri
+        type:
+          type: string
+        id:
+          type: string
+    EntityRelationship:
+      type: object
+      additionalProperties: false
+      required: [rel, target]
+      properties:
+        rel:
+          type: string
+        target:
+          type: object
+          additionalProperties: false
+          required: [type, id]
+          properties:
+            world:
+              type: string
+              format: uri
+            type:
+              type: string
+            id:
+              type: string
+    EntityEnvelope:
+      type: object
+      required:
+        - ref
+        - version
+        - updatedAt
+        - visibility
+        - attributes
+        - relationships
+        - capabilities
+      properties:
+        ref:
+          $ref: '#/components/schemas/EntityRef'
+        version:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+        visibility:
+          type: string
+          enum: [public, connections, private]
+        attributes:
+          type: object
+          additionalProperties: true
+        location:
+          type: object
+          additionalProperties: true
+        relationships:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityRelationship'
+        capabilities:
+          type: array
+          items:
+            type: string
+        links:
+          type: object
+          additionalProperties:
+            type: string
+        sponsorship:
+          type: object
+          additionalProperties: true
+        layer:
+          type: string
+    PaginatedEntityCollection:
+      type: object
+      additionalProperties: false
+      required: [entities, nextCursor]
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityEnvelope'
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: 'null'
+    DiscoverQuery:
+      type: object
+      additionalProperties: false
+      properties:
+        types:
+          type: array
+          items:
+            type: string
+        text:
+          type: string
+        category:
+          type: string
+        near:
+          type: object
+          additionalProperties: false
+          required: [cell]
+          properties:
+            cell:
+              type: string
+        radius:
+          type: string
+          enum: [nearby, district, city]
+        price:
+          type: object
+          additionalProperties: false
+          properties:
+            min:
+              $ref: '#/components/schemas/MoneyFilter'
+            max:
+              $ref: '#/components/schemas/MoneyFilter'
+        layer:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+        cursor:
+          oneOf:
+            - type: string
+            - type: 'null'
+    MoneyFilter:
+      type: object
+      additionalProperties: false
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+        currency:
+          type: string
+    ProtocolError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details: {}

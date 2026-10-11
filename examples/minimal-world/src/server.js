@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
 import { fetchWorld } from './world.js'
 
-const port = 8787
+const port = parsePort(process.env.PORT)
+const host = process.env.HOST ?? '127.0.0.1'
 
 const server = createServer(async (incoming, outgoing) => {
   try {
@@ -23,6 +24,14 @@ const server = createServer(async (incoming, outgoing) => {
   }
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Minimal World listening on http://localhost:${port}`)
+server.listen(port, host, () => {
+  console.log(`Minimal World listening on http://${host}:${port}`)
 })
+
+function parsePort(value) {
+  const port = Number.parseInt(value ?? '8787', 10)
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('PORT must be an integer between 1 and 65535')
+  }
+  return port
+}

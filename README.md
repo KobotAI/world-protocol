@@ -1,6 +1,6 @@
 # World Protocol
 
-World Protocol is an open protocol for discovery and interaction across independent virtual worlds. WorldKit is its framework-neutral TypeScript implementation.
+World Protocol is an open protocol for discovery and interaction across independent virtual worlds. WorldDevKit is its framework-neutral TypeScript implementation.
 
 The Level 1 release focuses on public discovery and entity reads. It gives world operators a small Fetch API server adapter, an environment-neutral client, runtime contracts and schemas, and a reusable conformance suite.
 
@@ -12,6 +12,8 @@ The Level 1 release focuses on public discovery and entity reads. It gives world
 | `@worlddevkit/server` | Framework-neutral Fetch API handler, pagination, CORS and rate limiting |
 | `@worlddevkit/client` | World discovery, typed reads, pagination and errors |
 | `@worlddevkit/testing` | Level 1 conformance runner for world implementations |
+| `@worlddevkit/core` | Framework-neutral entities and money values |
+| `@worlddevkit/geo` | Privacy-safe public location projection |
 
 ## Install
 
@@ -68,7 +70,7 @@ const handler = createWorldHandler({
 })
 ```
 
-See the package READMEs and `examples/` for complete usage.
+See the [five-minute quickstart](docs/getting-started/quickstart.md), [Level 1 API reference](docs/reference/level-1-api.md), [OpenAPI 3.1 document](docs/reference/openapi.yaml), [coding-agent guide](docs/agents/build-a-world.md), package READMEs and [`examples/`](examples/README.md) for complete usage. Public documentation is published under `https://docs.kobotai.co/world` using `gitbook.yaml` and `SUMMARY.md`.
 
 ## Development
 
@@ -76,7 +78,12 @@ Requirements: Node.js 20+ and pnpm 10.17.1.
 
 ```sh
 pnpm install
-pnpm build
+pnpm quickstart
+
+# In another terminal
+pnpm --dir examples/client-node quickstart
+
+# Full validation
 pnpm test
 pnpm typecheck
 ```
@@ -85,11 +92,11 @@ Each package remains independently installable and has its own frozen lockfile. 
 
 ## Releases
 
-Releases are performed by the guarded `WorldKit Release` GitHub Actions workflow using npm trusted publishing and GitHub OIDC. Source package manifests remain private as an accidental-publish guard; the release staging script creates audited public manifests.
+Releases are performed by the guarded `WorldDevKit Release` GitHub Actions workflow using npm trusted publishing and GitHub OIDC. Source package manifests remain private as an accidental-publish guard; the release staging script creates audited public manifests.
 
 ## Status
 
-World Protocol and WorldKit are pre-1.0. Level 1 APIs follow semantic versioning, but breaking changes may occur in minor versions until 1.0.
+World Protocol and WorldDevKit are pre-1.0. Level 1 APIs follow semantic versioning, but breaking changes may occur in minor versions until 1.0.
 
 ## License
 

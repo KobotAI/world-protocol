@@ -2,7 +2,7 @@
 
 A framework-neutral Fetch API handler for serving World Protocol Level 1 entities and `wp:discover` from any Node.js 20+ HTTP stack that can adapt to `Request` and `Response`.
 
-Storage is application-owned. Implement `EntitySource` with synthetic data, an API, files, or your persistence layer; WorldKit does not require a database.
+Storage is application-owned. Implement `EntitySource` with synthetic data, an API, files, or your persistence layer; WorldDevKit does not require a database.
 
 ## Requirements
 
