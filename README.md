@@ -6,15 +6,15 @@ The Level 1 release focuses on public discovery and entity reads. It gives world
 
 ## Packages
 
-| Package | Purpose |
-|---|---|
-| `@worlddevkit/spec` | TypeScript contracts and dependency-free JSON Schemas |
-| `@worlddevkit/server` | Framework-neutral Fetch API handler, pagination, CORS and rate limiting |
-| `@worlddevkit/client` | World discovery, typed reads, pagination and errors |
-| `@worlddevkit/testing` | Level 1 conformance runner for world implementations |
-| `@worlddevkit/core` | Framework-neutral entities and money values |
-| `@worlddevkit/geo` | Privacy-safe public location projection |
-| `create-worlddevkit` | Credential-free TypeScript world initializer |
+| Package                | Purpose                                                                 |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `@worlddevkit/spec`    | TypeScript contracts and dependency-free JSON Schemas                   |
+| `@worlddevkit/server`  | Framework-neutral Fetch API handler, pagination, CORS and rate limiting |
+| `@worlddevkit/client`  | World discovery, typed reads, pagination and errors                     |
+| `@worlddevkit/testing` | Level 1 conformance runner for world implementations                    |
+| `@worlddevkit/core`    | Framework-neutral entities and money values                             |
+| `@worlddevkit/geo`     | Privacy-safe public location projection                                 |
+| `create-worlddevkit`   | Credential-free TypeScript world initializer                            |
 
 ## Create a world
 
@@ -89,7 +89,7 @@ const handler = createWorldHandler({
 })
 ```
 
-See the [five-minute quickstart](docs/getting-started/quickstart.md), [Level 1 API reference](docs/reference/level-1-api.md), [OpenAPI 3.1 document](docs/reference/openapi.yaml), [coding-agent guide](docs/agents/build-a-world.md), package READMEs and [`examples/`](examples/README.md) for complete usage. Public documentation is published under `https://docs.kobotai.co/world` using `gitbook-docs.yaml`, `.gitbook.yaml`, and `SUMMARY.md`.
+See the [five-minute quickstart](quickstart.md), [Level 1 API reference](reference/level-1-api.md), [OpenAPI 3.1 document](docs/reference/openapi.yaml), [coding-agent guide](guides/build-a-world.md), package READMEs and [`examples/`](project/examples.md) for complete usage. Public documentation is published under `https://docs.kobotai.co/world` using `gitbook-docs.yaml`, `.gitbook.yaml`, and `SUMMARY.md`.
 
 ## Development
 
