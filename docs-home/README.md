@@ -9,7 +9,7 @@ Developer documentation for the World Protocol and WorldDevKit is available unde
 Give your coding agent a product brief and the complete WorldDevKit prompt:
 
 ```text
-Build <PRODUCT IDEA>.
+Build YOUR PRODUCT IDEA.
 
 https://world.kobotai.co/llm.txt
 ```
