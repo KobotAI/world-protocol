@@ -3,11 +3,16 @@ $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
   title: KobotAI Documentation
   structure:
-    - type: space
-      key: worlddevkit
+    - type: section
+      key: world
       title: World Protocol and WorldDevKit
       path: world
-      default: true
-      content:
-        directory: ./
-        language: en
+      children:
+        - type: space
+          key: worlddevkit
+          title: WorldDevKit
+          path: worlddevkit
+          default: true
+          content:
+            directory: ./
+            language: en
