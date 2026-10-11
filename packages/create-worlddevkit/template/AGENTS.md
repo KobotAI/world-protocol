@@ -1,6 +1,18 @@
 # World development guide
 
-## Extend the world
+## Deliver a world, not an API demo
+
+Unless the user explicitly asks for backend-only work, the finished product must include a public, browsable experience for the world's actual audience. Protocol conformance is the foundation, not the final interface.
+
+- Start by identifying the audience, public entities, core journey, and a visual metaphor suited to the domain.
+- Build an intentional explore surface and entity detail experience. A map, 2D/3D scene, graph, timeline, catalog, or another domain-specific representation is preferable to a generic dashboard or JSON viewer.
+- Include an accessible list/search path, responsive layouts, keyboard-usable controls, and designed loading, empty, and error states.
+- Use one source of truth for the interface and World Protocol routes. Do not create a visual mock backed by data that differs from the public entities.
+- Keep representative demo content and a credential-free local mode so `npm install` and `npm run dev` produce a useful world immediately.
+- Preserve the current stack when integrating into an existing product. In this generated starter, add only the UI and rendering dependencies justified by the intended experience.
+- Do not stop after scaffolding routes or returning conformant JSON. Run the product and verify the primary exploration journey end to end.
+
+## Extend the protocol surface
 
 - Define additional protocol entities in `src/world.ts` as `EntityEnvelope` values.
 - Add each supported type to `discovery.entityTypes`, then implement it in both `source.list` and `source.get`.
