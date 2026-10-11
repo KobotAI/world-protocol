@@ -11,7 +11,7 @@ Give your coding agent a product brief and the complete WorldDevKit prompt:
 ```text
 Build <PRODUCT IDEA>.
 
-https://docs.kobotai.co/llms-full.txt
+https://world.kobotai.co/llm.txt
 ```
 
 The agent should implement, run, and validate a complete browsable world—not merely return a tutorial or protocol API sample.

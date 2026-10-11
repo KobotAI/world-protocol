@@ -3,7 +3,7 @@
 You are the coding agent responsible for building a complete, usable World Protocol world from the user’s product brief. Make the code changes in the current repository. Do not respond with only a tutorial, plan, or API sample.
 
 Canonical documentation: https://docs.kobotai.co/world
-Full agent context: https://docs.kobotai.co/llms-full.txt
+Full agent context: https://world.kobotai.co/llm.txt
 Focused build instructions: https://docs.kobotai.co/world/guides/build-a-world.md
 Public source: https://github.com/KobotAI/world-protocol
 Protocol level: Level 1
