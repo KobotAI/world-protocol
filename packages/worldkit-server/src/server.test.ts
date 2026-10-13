@@ -146,3 +146,88 @@ describe('createWorldHandler visibility', () => {
     expect(body.entities.every((entity) => entity.visibility === 'public')).toBe(true)
   })
 })
+
+describe('createWorldHandler caching', () => {
+  it('lets caches keep successful reads but never errors', async () => {
+    const ok = await handler()(new Request('https://example.world/api/world/v0/entities/wp%3Astore'))
+    expect(ok.headers.get('cache-control')).toMatch(/^public/)
+    const missing = await handler()(new Request('https://example.world/api/world/v0/entities/wp%3Astore/nope'))
+    expect(missing.status).toBe(404)
+    expect(missing.headers.get('cache-control')).toBe('no-store')
+    const limited = handler({ rateLimiter: createMemoryRateLimiter({ limit: 0, windowMs: 60_000 }) })
+    const tooMany = await limited(new Request('https://example.world/api/world/v0/discover'))
+    expect(tooMany.status).toBe(429)
+    expect(tooMany.headers.get('cache-control')).toBe('no-store')
+    expect(tooMany.headers.get('retry-after')).not.toBeNull()
+  })
+})
+
+describe('createWorldHandler rate-limit keys', () => {
+  function recordKeys(overrides: Partial<Parameters<typeof createWorldHandler>[0]> = {}) {
+    const keys: string[] = []
+    const run = handler({ rateLimiter: { consume: (key) => { keys.push(key); return { allowed: true } } }, ...overrides })
+    const call = (headers: Record<string, string>) => run(new Request('https://example.world/api/world/v0/discover', { headers }))
+    return { keys, call }
+  }
+
+  it('uses the address the nearest proxy saw, not one the client wrote', async () => {
+    const { keys, call } = recordKeys()
+    await call({ 'x-forwarded-for': '6.6.6.6, 203.0.113.9' })
+    await call({ 'x-forwarded-for': '203.0.113.9' })
+    expect(keys).toEqual(['discover:203.0.113.9', 'discover:203.0.113.9'])
+  })
+
+  it('counts several trusted proxy hops from the right', async () => {
+    const { keys, call } = recordKeys({ trustProxy: 2 })
+    await call({ 'x-forwarded-for': '6.6.6.6, 198.51.100.4, 10.0.0.2' })
+    expect(keys).toEqual(['discover:198.51.100.4'])
+  })
+
+  it('ignores forwarding headers when no proxy is trusted', async () => {
+    const { keys, call } = recordKeys({ trustProxy: false })
+    await call({ 'x-forwarded-for': '6.6.6.6', 'x-real-ip': '7.7.7.7' })
+    expect(keys).toEqual(['discover:anonymous'])
+  })
+
+  it('prefers a clientKey function', async () => {
+    const { keys, call } = recordKeys({ clientKey: (request) => request.headers.get('cf-connecting-ip') ?? undefined })
+    await call({ 'cf-connecting-ip': '192.0.2.1', 'x-forwarded-for': '6.6.6.6' })
+    await call({ 'x-forwarded-for': '6.6.6.6' })
+    expect(keys).toEqual(['discover:192.0.2.1', 'discover:6.6.6.6'])
+  })
+})
+
+describe('createWorldHandler search fields', () => {
+  const people: EntityEnvelope[] = [
+    { ...stores[0]!, ref: { ...stores[0]!.ref, type: 'wp:person', id: 'ada' }, attributes: { name: 'Ada', bio: 'Loves suya and jollof' } },
+  ]
+  const peopleSource: EntitySource = {
+    async list(type) {
+      return type === 'wp:person' ? people : type === 'wp:store' ? stores : []
+    },
+    async get() {
+      return null
+    },
+  }
+  const search = async (text: string, overrides: Partial<Parameters<typeof createWorldHandler>[0]>) => {
+    const run = handler({ world: { ...world, entityTypes: ['wp:store', 'wp:person'] }, source: peopleSource, ...overrides })
+    const response = await run(new Request(`https://example.world/api/world/v0/discover?text=${encodeURIComponent(text)}`))
+    return ((await response.json()) as { entities: EntityEnvelope[] }).entities.map((entity) => entity.ref.id)
+  }
+
+  it('searches name, description, tagline and category by default', async () => {
+    await expect(search('jollof', {})).resolves.toEqual([])
+    await expect(search('fashion', {})).resolves.toEqual(['1'])
+  })
+
+  it('searches the configured fields for every type', async () => {
+    await expect(search('jollof', { searchFields: ['bio'] })).resolves.toEqual(['ada'])
+    await expect(search('fashion', { searchFields: ['bio'] })).resolves.toEqual([])
+  })
+
+  it('searches per-type fields and falls back to the defaults', async () => {
+    const searchFields = { 'wp:person': ['name', 'bio'] }
+    await expect(search('jollof', { searchFields })).resolves.toEqual(['ada'])
+    await expect(search('fashion', { searchFields })).resolves.toEqual(['1'])
+  })
+})

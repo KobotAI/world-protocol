@@ -100,6 +100,20 @@ When you use `createWorldHandler` directly, your host adapter must separately ex
 
 The in-memory rate limiter is appropriate for examples, tests, and one-process deployments. Use a shared `RateLimiter` implementation when requests can reach multiple processes.
 
+## Options
+
+Both `defineWorld` and `createWorldHandler` accept:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `searchFields` | `['name', 'description', 'tagline', 'category']` | Attributes `wp:discover` text search matches: one list for every type, or `{ 'wp:person': ['name', 'bio'] }` per type. |
+| `trustProxy` | `1` | Reverse proxies in front of the server that append to `X-Forwarded-For`. The rate limiter keys clients by the address the outermost trusted proxy recorded, so a client cannot forge its own key. Use `false` when nothing in front of the server sets the header. |
+| `clientKey` | none | `(request) => string \| undefined`. Derives the rate-limit key yourself, for example from `CF-Connecting-IP`. Takes precedence over `trustProxy`. |
+| `maxPageSize` | `50` | Upper bound for `limit`. |
+| `cors` | `*` with `defineWorld` | Allowed origins for browser reads. |
+
+Successful reads are cacheable for 60 seconds. Error responses, including 429s, are sent with `Cache-Control: no-store`.
+
 See [`examples/minimal-world`](../../examples/minimal-world) for a runnable Node HTTP adapter and conformance test.
 
 ## License

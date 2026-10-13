@@ -65,7 +65,7 @@ Finish each phase, with its checks passing, before you start the next. If you ru
 1. In `src/world.ts`, rename the world and write a `description` from the brief.
 2. In `src/data.ts`, replace the sample places with the world's entities:
    - Use readable, stable IDs (`vendor-iya-basira`). Never change an ID after publishing it.
-   - Give entities `name`, `description` and `category` attributes where they make sense. The built-in `wp:discover` search matches `name`, `description`, `tagline` and `category`.
+   - Give entities `name`, `description` and `category` attributes where they make sense. The built-in `wp:discover` search matches `name`, `description`, `tagline` and `category`; pass `searchFields` to `defineWorld` to search other attributes.
    - Connect entities with `relationships`, for example `{ rel: 'serves', target: { type: 'wp:dish', id: 'dish-amala' } }`. `defineWorld` throws at startup if a target does not exist.
    - Do not include private data: home addresses, private phone numbers, credentials, internal notes. Only `public` entities are served.
 3. Run:
