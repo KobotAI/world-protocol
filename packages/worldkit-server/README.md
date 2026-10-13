@@ -56,7 +56,20 @@ export const handleRequest = (request: Request) =>
   world.handles(request.url) ? world.fetch(request) : site(request)
 ```
 
-Extensionless paths with no matching file fall back to `index.html` for client-side routing (set `fallback: false` to disable). Paths outside `root`, including through symlinks, answer 404. This entry point uses `node:fs`; the main entry point stays runtime-neutral.
+Extensionless paths with no matching file fall back to `index.html` for client-side routing (set `fallback: false` to disable).
+
+To serve a browser library installed from npm (for example Three.js) without copying it or adding a build step, combine `prefix` with `resolvePackageDirectory`:
+
+```ts
+import { createStaticHandler, resolvePackageDirectory } from '@worlddevkit/server/node'
+
+const three = createStaticHandler({
+  root: resolvePackageDirectory('three', 'build', import.meta.url),
+  prefix: '/vendor/three/',
+  fallback: false,
+})
+// then route /vendor/three/* to it, and map "three" to /vendor/three/three.module.min.js in an import map
+``` Paths outside `root`, including through symlinks, answer 404. This entry point uses `node:fs`; the main entry point stays runtime-neutral.
 
 ## Create a handler
 

@@ -33,5 +33,7 @@ The starter already works end to end: a website at `/`, the API, sample entities
 - Keep the list/search view as the accessible path; keep loading, empty, not-found and error states.
 - Discover the API from `/.well-known/world.json`; treat cursors as opaque; only `public` entities are served.
 - No database, auth, Docker or cloud services unless the brief requires them.
+- The person may not be a developer: never ask technical questions; turn wishes ("3D", "like a game", "a map") into tools yourself (Three.js, an SVG map, Level 2); serve npm browser libraries with `resolvePackageDirectory` + `createStaticHandler({ prefix })`; report in plain words.
+- Check every screen at phone width in light and dark mode, with screenshots.
 - `WORLD_URL` is the public origin with no path; locally it follows `PORT`.
 - Report what you built, files changed, the commands you actually ran and their results, what you could not verify, and what Level 1 could not do.
