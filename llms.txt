@@ -1,96 +1,37 @@
 # WorldDevKit coding-agent instructions
 
-You are the coding agent responsible for building a complete, usable World Protocol world from the user’s product brief. Make the code changes in the current repository. Do not respond with only a tutorial, plan, or API sample.
-
 Canonical documentation: https://docs.kobotai.co/world
 Full agent context: https://world.kobotai.co/llm.txt
 Focused build instructions: https://docs.kobotai.co/world/guides/build-a-world.md
 Public source: https://github.com/KobotAI/world-protocol
-Protocol level: Level 1
-Protocol version: world/0.1
-Package version: 0.1.2
+Protocol: world/0.1, Level 1 (read-only)
+Package version: 0.2.0
 Runtime: Node.js 20+
 
-## Mission
-
-Deliver the world people will visit, not only the protocol server beneath it.
-
-Unless the user explicitly requests backend-only work, the result must include:
-
-- A distinctive public entry and exploration experience for the intended audience.
-- A domain-appropriate representation such as a map, 2D/3D scene, graph, timeline, catalog, spatial directory, or another fitting model.
-- Navigation, representative content, search/filtering, and useful entity details.
-- A responsive and keyboard-usable interface with an accessible list-based exploration path.
-- Designed loading, empty, not-found, and failure states.
-- A credential-free demo mode that works immediately.
-- A conformant World Protocol Level 1 API exposing the same entities as the interface.
-
-A conformant JSON API without a usable world experience is incomplete. Do not default to a generic dashboard, raw JSON viewer, placeholder content, or generic AI styling.
+You are a coding agent. Build the world in the user's brief as a working website that also serves the World Protocol Level 1 API. Make the changes and run them; do not reply with only a plan or tutorial.
 
 ## Start
-
-If the current repository is not already a WorldDevKit project:
 
 ```sh
 npm create worlddevkit@latest my-world
 cd my-world
 npm install
+npm test
 ```
 
-If integrating into an existing application, preserve its framework, package manager, design system, and conventions. Use the public `@worlddevkit/*` packages. In a generated starter, add only the UI and rendering dependencies justified by the requested experience.
+The starter already works end to end: a website at `/`, the API, sample entities and passing tests. Change three places:
 
-Do not add a database, authentication, Docker, or cloud-specific infrastructure unless the product requires it. Keep a credential-free local mode.
+- `src/data.ts`: every entity; the single source of truth for API and website.
+- `src/world.ts`: name, description and public URL, via `defineWorld`.
+- `public/`: the website, which reads data only through the API.
 
-## Product decisions
+## Rules
 
-Infer the audience, public entities, core journey, visual metaphor, and smallest suitable architecture from the user’s brief. State those decisions briefly, then implement them. Ask only when missing information would materially change the product or create irreversible risk. Make reasonable routine design and engineering decisions autonomously.
-
-The interface and protocol routes must use one source of truth. Never build a disconnected visual mock over different fixture data.
-
-## Protocol requirements
-
-WorldDevKit packages:
-
-- `@worlddevkit/spec`: protocol contracts, constants, and JSON Schemas.
-- `@worlddevkit/server`: Fetch-compatible Level 1 handler.
-- `@worlddevkit/client`: discovery and typed public reads.
-- `@worlddevkit/testing`: Level 1 conformance checks.
-- `@worlddevkit/core`: entities and money values.
-- `@worlddevkit/geo`: privacy-safe public location projection.
-
-Required routes:
-
-```text
-GET  /.well-known/world.json
-GET  /api/world/v0
-GET  /api/world/v0/entities/{type}
-GET  /api/world/v0/entities/{type}/{id}
-POST /api/world/v0/actions/wp%3Adiscover
-```
-
-Every public entity must preserve:
-
-```text
-ref, version, updatedAt, visibility, attributes, relationships, capabilities
-```
-
-Keep `ref.world` equal to the discovery world ID. Advertise every returned entity type. Keep IDs stable, increment versions when observable data changes, return `null` for a missing entity, treat cursors as opaque, and preserve `wp:discover`. Clients must discover the API endpoint instead of hardcoding it.
-
-Local default: `http://localhost:8787`
-Production identity: set `WORLD_URL` to the public HTTPS origin.
-Never advertise localhost, `0.0.0.0`, a private IP, or a container hostname in production.
-Never expose secrets, private coordinates, or non-public source fields.
-
-## Execute
-
-1. Read repository instructions and inspect the existing stack.
-2. Define the audience, entity model, core journey, and visual direction.
-3. Implement representative entities plus `source.list(type)` and `source.get(type, id)`.
-4. Build the entry, explore, accessible list/search, and entity-detail experiences.
-5. Connect the interface and Level 1 routes to the same source.
-6. Add responsive, accessible, loading, empty, not-found, and failure behavior.
-7. Add or update product-path and Level 1 conformance tests.
-8. Run and inspect the product end to end.
-9. Run `npm run typecheck` and `npm test` and report exact results.
-
-Do not stop after scaffolding routes. Implement the complete product and validate the primary visitor journey.
+- Level 1 is read-only. Visitor-changed state (game moves, scores, votes) lives in the browser or your own routes outside `/api/world/v0`; say so in your report.
+- Scope: 2–4 entity types, 15–40 entities with relationships; one explore view designed for the domain, plus list/search and detail views.
+- Work in phases: data and API with `npm run typecheck` and `npm test` passing, then the website, then tests and polish.
+- Keep the list/search view as the accessible path; keep loading, empty, not-found and error states.
+- Discover the API from `/.well-known/world.json`; treat cursors as opaque; only `public` entities are served.
+- No database, auth, Docker or cloud services unless the brief requires them.
+- `WORLD_URL` is the public origin with no path; locally it follows `PORT`.
+- Report what you built, files changed, the commands you actually ran and their results, what you could not verify, and what Level 1 could not do.

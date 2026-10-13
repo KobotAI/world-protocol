@@ -1,6 +1,6 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { Readable } from 'node:stream'
-import { fetchWorld } from './world.js'
+import { handleRequest } from './app.js'
 
 const port = parsePort(process.env.PORT)
 const host = process.env.HOST ?? '127.0.0.1'
@@ -21,7 +21,7 @@ const server = createServer(async (incoming, outgoing) => {
       init.duplex = 'half'
     }
 
-    const response = await fetchWorld(new Request(url, init))
+    const response = await handleRequest(new Request(url, init))
     outgoing.writeHead(response.status, Object.fromEntries(response.headers))
     outgoing.end(Buffer.from(await response.arrayBuffer()))
   } catch (error) {
@@ -32,7 +32,7 @@ const server = createServer(async (incoming, outgoing) => {
 })
 
 server.listen(port, host, () => {
-  console.log(`World listening on http://${host}:${port}`)
+  console.log(`World listening on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`)
 })
 
 function toHeaders(incoming: IncomingHttpHeaders): Headers {

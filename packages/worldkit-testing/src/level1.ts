@@ -16,6 +16,7 @@ export type Level1CheckName =
   | 'public-read-cors'
   | 'discover-route'
   | 'no-unadvertised-entity-types'
+  | 'public-visibility-only'
 
 export interface Level1ConformanceTarget {
   /** Any URL on the world origin. Discovery is requested from `/.well-known/world.json`. */
@@ -81,6 +82,7 @@ const CHECK_NAMES: readonly Level1CheckName[] = [
   'public-read-cors',
   'discover-route',
   'no-unadvertised-entity-types',
+  'public-visibility-only',
 ]
 
 export async function runLevel1Conformance(
@@ -177,6 +179,17 @@ export async function runLevel1Conformance(
     assert(context.discoverEntities !== undefined, 'Discover route prerequisite failed')
     for (const entity of [...scan.entities, ...context.discoverEntities]) {
       assert(discovery.entityTypes.includes(entity.ref.type), `Response exposed unadvertised entity type: ${entity.ref.type}`)
+    }
+  })
+
+  await run('public-visibility-only', async () => {
+    const scan = requireScan(context)
+    assert(context.discoverEntities !== undefined, 'Discover route prerequisite failed')
+    for (const entity of [...scan.entities, ...context.discoverEntities]) {
+      assert(
+        entity.visibility === 'public',
+        `Level 1 is public-read only, but ${entity.ref.type}/${entity.ref.id} was served with visibility "${entity.visibility}"`,
+      )
     }
   })
 
