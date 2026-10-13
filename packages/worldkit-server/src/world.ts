@@ -13,6 +13,19 @@ import {
   type RateLimiter,
   type WorldHandlerOptions,
 } from './server.js'
+import {
+  ENTITY_CHANGED_EVENT,
+  ENTITY_REMOVED_EVENT,
+  LEVEL_2_EXTENSION,
+  createActionDispatcher,
+  createEventHub,
+  createMemorySessions,
+  createMemoryStore,
+  createSerialQueue,
+  type ActionRegistry,
+  type SessionStore,
+  type WorldStore,
+} from './level2.js'
 
 export const WELL_KNOWN_WORLD_PATH = '/.well-known/world.json'
 const DEFAULT_API_PATH = '/api/world/v0'
@@ -59,13 +72,37 @@ export interface DefineWorldOptions {
   trustProxy?: WorldHandlerOptions['trustProxy']
   /** Rate-limit key override. See `WorldHandlerOptions.clientKey`. */
   clientKey?: WorldHandlerOptions['clientKey']
+  /**
+   * Level 2: actions that change the world, by name (for example `game:guess`). Defining any action
+   * makes this a Level 2 world: discovery advertises the actions, `wp:session`, the events stream
+   * and the `wp:level-2` extension.
+   */
+  actions?: ActionRegistry
+  /** Level 2: world-defined events actions may `emit`, besides `entity.changed` and `entity.removed`. */
+  events?: readonly string[]
+  /** Level 2: issues and checks session tokens. Defaults to in-memory sessions that last 24 hours. */
+  sessions?: SessionStore
+  /** Level 2: rate limit for actions, per session. Defaults to 120 actions a minute. */
+  actionRateLimiter?: RateLimiter
+  /** Level 2: rate limit for new sessions, per client address. Defaults to 10 a minute. */
+  sessionRateLimiter?: RateLimiter
 }
 
 export interface DefinedWorld {
   discovery: WorldDiscoveryDocument
   source: EntitySource
-  /** Every entity, including ones that are not public. Useful for tests and server-side rendering. */
+  /** The entities the world started with, including ones that are not public. */
   entities: readonly EntityEnvelope[]
+  /**
+   * Read the world's current state, including changes made by actions. To change it from server
+   * code (a timer, an import), use `change`.
+   */
+  read: Pick<WorldStore, 'get' | 'list'>
+  /**
+   * Change the world from server code, for example when a round timer fires. Runs in the same
+   * one-at-a-time queue as actions, so it never interleaves with one.
+   */
+  change<T>(task: (world: WorldStore) => T | Promise<T>): Promise<T>
   /**
    * Serves `/.well-known/world.json` and the Level 1 API, with the same signature as global
    * `fetch`, so it can be passed straight to `WorldClient` and the conformance suite.
@@ -126,13 +163,32 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     actions: ['wp:discover'],
   }
 
-  const source: EntitySource = {
-    async list(type) {
-      return byType.get(type) ?? []
-    },
-    async get(type, id) {
-      return byKey.get(entityKey(type, id)) ?? null
-    },
+  const actionNames = Object.keys(options.actions ?? {})
+  const level2 = actionNames.length > 0
+  for (const name of actionNames) {
+    if (name === 'wp:discover' || name === 'wp:session') throw new Error(`defineWorld: ${name} is built in and cannot be redefined`)
+    if (!/^[a-z0-9-]+:[a-z0-9_.-]+$/i.test(name)) throw new Error(`defineWorld: action "${name}" must be namespaced, for example "game:${name}"`)
+  }
+  const declaredEvents = [...new Set(options.events ?? [])]
+  for (const event of declaredEvents) {
+    if (event === ENTITY_CHANGED_EVENT || event === ENTITY_REMOVED_EVENT || event === 'reset') {
+      throw new Error(`defineWorld: ${event} is a built-in event and does not need declaring`)
+    }
+  }
+
+  const hub = createEventHub()
+  const queue = createSerialQueue()
+  const store = createMemoryStore(entities, { world: worldId, hub, events: declaredEvents, types: entityTypes })
+  const source: EntitySource = store.source
+  const dispatcher = level2
+    ? createActionDispatcher({ actions: options.actions ?? {}, store, sessions: options.sessions ?? createMemorySessions(), queue })
+    : undefined
+
+  if (dispatcher) {
+    discovery.actions = ['wp:discover', ...dispatcher.names]
+    discovery.endpoints.events = `${worldId}${apiPath}/events`
+    discovery.events = [ENTITY_CHANGED_EVENT, ENTITY_REMOVED_EVENT, ...declaredEvents]
+    discovery.extensions = [LEVEL_2_EXTENSION]
   }
 
   const cors = options.cors ?? '*'
@@ -145,6 +201,14 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     ...(options.searchFields !== undefined ? { searchFields: options.searchFields } : {}),
     ...(options.trustProxy !== undefined ? { trustProxy: options.trustProxy } : {}),
     ...(options.clientKey !== undefined ? { clientKey: options.clientKey } : {}),
+    ...(dispatcher
+      ? {
+          actions: dispatcher,
+          events: hub,
+          actionRateLimiter: options.actionRateLimiter ?? createMemoryRateLimiter({ limit: 120, windowMs: 60_000 }),
+          sessionRateLimiter: options.sessionRateLimiter ?? createMemoryRateLimiter({ limit: 10, windowMs: 60_000 }),
+        }
+      : {}),
   })
 
   const handles = (url: string | URL): boolean => {
@@ -156,6 +220,13 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     discovery,
     source,
     entities,
+    read: { get: store.get, list: store.list },
+    change(task) {
+      return queue.run(() => {
+        const recording = store.recording()
+        return task(recording.store)
+      })
+    },
     handles,
     async fetch(input, init) {
       const request = input instanceof Request && init === undefined ? input : new Request(input, init)

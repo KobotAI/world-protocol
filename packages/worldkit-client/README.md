@@ -78,3 +78,29 @@ See [`examples/client-node`](../../examples/client-node) for a complete Node con
 ## License
 
 Apache-2.0. See [`LICENSE`](./LICENSE).
+
+## Level 2
+
+```ts
+const client = await WorldClient.connect('https://plots.example')
+if (client.isLevel2) {
+  const session = await client.startSession()
+  const player = client.withAccessToken(session.token)
+
+  const subscription = client.subscribe((event) => {
+    // event.event: 'entity.changed' | 'entity.removed' | 'reset' | a world event
+    console.log(event.id, event.event, event.data)
+  })
+
+  try {
+    const { output, changed } = await player.invoke('game:claim', {}, { target: { type: 'game:plot', id: 'p1' }, ifVersion: 1 })
+  } catch (error) {
+    if (error instanceof WorldHttpError && error.code === 'version_conflict') {
+      // error.details.current is the plot as it is now
+    }
+  }
+  subscription.close()
+}
+```
+
+`subscribe` reconnects after a dropped connection and resumes from the last event it saw.

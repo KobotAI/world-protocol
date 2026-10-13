@@ -2,7 +2,9 @@ import type {
   DiscoverQuery,
   DiscoverResult,
   EntityEnvelope,
+  EntityRef,
   JsonObject,
+  JsonValue,
   PaginatedEntityCollection,
   ProtocolError,
   WorldDiscoveryDocument,
@@ -20,6 +22,51 @@ export interface WorldClientOptions {
 
 export interface RequestOptions {
   signal?: AbortSignal
+}
+
+export interface InvokeOptions extends RequestOptions {
+  /** The entity the action acts on. Its `capabilities` must include the action. */
+  target?: { type: string; id: string }
+  /** Refuse with `version_conflict` (HTTP 409) unless the target is still at this version. */
+  ifVersion?: number
+}
+
+export interface ActionResult<Output extends JsonValue = JsonValue> {
+  output: Output
+  /** Public entities the action created or changed, at their new versions. */
+  changed: EntityEnvelope[]
+  /** Refs of public entities the action removed. */
+  removed: EntityRef[]
+}
+
+export interface Session {
+  token: string
+  caller: string
+  expiresAt: string
+}
+
+export interface WorldStreamEvent {
+  /** Monotonic event id. Pass the last one you saw as `lastEventId` to resume. */
+  id: number
+  /** `entity.changed`, `entity.removed`, `reset`, or a world-defined event such as `game:round`. */
+  event: string
+  data: JsonValue
+}
+
+export interface SubscribeOptions {
+  /** Resume after this event id. */
+  lastEventId?: number
+  signal?: AbortSignal
+  /** Reconnect after a dropped connection. Defaults to true. */
+  reconnect?: boolean
+  /** Called when the connection drops (before reconnecting) or fails for good. */
+  onError?: (error: unknown) => void
+}
+
+export interface Subscription {
+  close(): void
+  /** Resolves when the subscription ends: closed, aborted, or failed without reconnecting. */
+  readonly closed: Promise<void>
 }
 
 export interface ListEntitiesOptions extends RequestOptions {
@@ -168,6 +215,92 @@ export class WorldClient {
     }
   }
 
+  /** True when the world advertises Level 2: actions that change it, sessions and live events. */
+  get isLevel2(): boolean {
+    return this.world.extensions?.includes('wp:level-2') === true
+  }
+
+  /**
+   * Starts a session with a Level 2 world. Pass the returned token as `accessToken` (or use
+   * `withAccessToken`) so the world knows which caller made each action.
+   */
+  async startSession(options: RequestOptions = {}): Promise<Session> {
+    const result = await this.invoke<JsonObject>('wp:session', {}, options)
+    const output = result.output
+    if (typeof output.token !== 'string' || typeof output.caller !== 'string' || typeof output.expiresAt !== 'string') {
+      throw new WorldResponseError(this.#apiUrl('actions/wp%3Asession').href, 'World returned an invalid session')
+    }
+    return { token: output.token, caller: output.caller, expiresAt: output.expiresAt }
+  }
+
+  /** A client for the same world that sends `token` with every request. */
+  withAccessToken(token: string): WorldClient {
+    return new WorldClient(this.world, { fetch: this.#fetch, accessToken: token, ...(this.#headers ? { headers: this.#headers } : {}) })
+  }
+
+  /**
+   * Invokes a Level 2 action. Refusals throw `WorldHttpError`: check `error.code`, for example
+   * `version_conflict` (with the current entity in `error.details.current`), `not_allowed`, or
+   * a world-defined code.
+   */
+  async invoke<Output extends JsonValue = JsonValue>(
+    action: string,
+    input: JsonObject = {},
+    options: InvokeOptions = {},
+  ): Promise<ActionResult<Output>> {
+    const url = this.#apiUrl(`actions/${encodeURIComponent(action)}`)
+    const body: JsonObject = { input }
+    if (options.target) body.target = { type: options.target.type, id: options.target.id }
+    if (options.ifVersion !== undefined) body.ifVersion = options.ifVersion
+    const value = await this.#request<unknown>(url, { method: 'POST', body: JSON.stringify(body), signal: options.signal }, isActionResult)
+    return value as ActionResult<Output>
+  }
+
+  /**
+   * Streams a Level 2 world's events: entity changes and world-defined events. Reconnects after
+   * a dropped connection and resumes where it left off. A `reset` event means the world could not
+   * replay what you missed: refetch the state you show.
+   */
+  subscribe(onEvent: (event: WorldStreamEvent) => void, options: SubscribeOptions = {}): Subscription {
+    const endpoint = this.world.endpoints.events
+    if (!endpoint) throw new WorldClientError('This world does not advertise an events endpoint')
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    options.signal?.addEventListener('abort', abort)
+    let lastEventId = options.lastEventId
+
+    const loop = async () => {
+      let delay = 500
+      while (!controller.signal.aborted) {
+        try {
+          const token = await resolveAccessToken(this.#accessToken)
+          const headers = mergeHeaders(this.#headers, {
+            accept: 'text/event-stream',
+            ...(lastEventId === undefined ? {} : { 'last-event-id': String(lastEventId) }),
+            ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+          })
+          const response = await fetchResponse(this.#fetch, new URL(endpoint), { headers, signal: controller.signal })
+          if (!response.body) throw new WorldResponseError(endpoint, 'World returned an empty event stream')
+          delay = 500
+          for await (const event of readServerSentEvents(response.body, controller.signal)) {
+            lastEventId = event.id
+            onEvent(event)
+          }
+          throw new WorldResponseError(endpoint, 'World closed the event stream')
+        } catch (error) {
+          if (controller.signal.aborted) return
+          options.onError?.(error)
+          if (options.reconnect === false || (error instanceof WorldHttpError && error.status < 500 && error.status !== 429)) return
+          await sleep(delay, controller.signal)
+          delay = Math.min(delay * 2, 10_000)
+        }
+      }
+    }
+
+    const closed = loop().finally(() => options.signal?.removeEventListener('abort', abort))
+    return { close: abort, closed }
+  }
+
   #apiUrl(path: string): URL {
     return new URL(`${this.world.endpoints.api.replace(/\/+$/, '')}/${path}`)
   }
@@ -266,6 +399,73 @@ function isEntityCollection(value: unknown): value is PaginatedEntityCollection 
     && Array.isArray(value.entities)
     && value.entities.every(isEntityEnvelope)
     && (typeof value.nextCursor === 'string' || value.nextCursor === null)
+}
+
+function isActionResult(value: unknown): value is ActionResult {
+  return isRecord(value)
+    && 'output' in value
+    && Array.isArray(value.changed)
+    && value.changed.every(isEntityEnvelope)
+    && Array.isArray(value.removed)
+}
+
+async function* readServerSentEvents(body: ReadableStream<Uint8Array>, signal: AbortSignal): AsyncGenerator<WorldStreamEvent> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  // Not every runtime cancels a response body when its request is aborted; cancel it here.
+  const cancel = () => {
+    reader.cancel().catch(() => undefined)
+  }
+  signal.addEventListener('abort', cancel, { once: true })
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) return
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n?/g, '\n')
+      let boundary: number
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        let id: number | undefined
+        let event = 'message'
+        const data: string[] = []
+        for (const line of block.split('\n')) {
+          if (line === '' || line.startsWith(':')) continue
+          const colon = line.indexOf(':')
+          const field = colon < 0 ? line : line.slice(0, colon)
+          const text = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /, '')
+          if (field === 'id') id = Number.parseInt(text, 10)
+          else if (field === 'event') event = text
+          else if (field === 'data') data.push(text)
+        }
+        if (data.length === 0 || id === undefined || !Number.isSafeInteger(id)) continue
+        let parsed: JsonValue
+        try {
+          parsed = JSON.parse(data.join('\n')) as JsonValue
+        } catch {
+          continue
+        }
+        yield { id, event, data: parsed }
+      }
+    }
+  } finally {
+    signal.removeEventListener('abort', cancel)
+    reader.releaseLock()
+  }
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve()
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+  })
 }
 
 function isProtocolError(value: unknown): value is ProtocolError {

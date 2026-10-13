@@ -10,12 +10,14 @@ This project is a World Protocol Level 1 world: a public website for exploring a
 | `src/world.ts` | World name, description and `WORLD_URL`, via `defineWorld`. | Always: rename and describe the world. |
 | `public/` | The website: `index.html`, `app.js`, `styles.css`. It reads data only through the API. | Always: build the explore experience here. |
 | `src/app.ts` | Sends protocol paths to the API and everything else to `public/`. | Only to add your own non-protocol routes. |
-| `src/server.ts` | Node HTTP adapter. | Rarely. |
+| `src/server.ts` | Node HTTP adapter. Streams responses, so live events work. | Rarely. |
 | `test/` | Conformance, data and website tests. | When you add entity types or journeys. |
 
-## What Level 1 can and cannot do
+## Level 1 or Level 2
 
-Level 1 is **read-only**: discovery, list, get and `wp:discover` search. It cannot record anything a visitor does (moves, scores, votes, purchases). If the brief needs that, keep the state in the browser or in your own routes in `src/app.ts`, outside `/api/world/v0`, and say so in your report. Never advertise an action in discovery that is not implemented.
+The starter is **Level 1, read-only**: discovery, list, get and `wp:discover` search. That fits worlds people explore.
+
+If people change the world (a game, claims, votes, anything others should see live), make it **Level 2** by adding `actions` to `defineWorld` in `src/world.ts`. The kit then adds sessions, the actions API and a live events stream at `/api/world/v0/events`, and this project's Node adapter already streams them. Follow the "Level 2" section of the build guide (`guides/build-a-world.md` in the WorldDevKit docs). Never advertise an action you have not implemented, and never put secrets (answers, hidden cards) in public entities.
 
 ## Rules
 
@@ -32,6 +34,7 @@ Level 1 is **read-only**: discovery, list, get and `wp:discover` search. It cann
 ```sh
 npm run typecheck
 npm test            # conformance, data integrity and website smoke tests
+                    # (add assertLevel2Conformance and a race test for a Level 2 world)
 npm run dev         # then open http://localhost:8787
 ```
 

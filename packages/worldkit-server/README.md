@@ -100,6 +100,43 @@ When you use `createWorldHandler` directly, your host adapter must separately ex
 
 The in-memory rate limiter is appropriate for examples, tests, and one-process deployments. Use a shared `RateLimiter` implementation when requests can reach multiple processes.
 
+## Level 2: actions, sessions and live events
+
+Add `actions` to `defineWorld` and the world accepts changes. See the [Level 2 API reference](../../reference/level-2-api.md) for the wire format.
+
+```ts
+import { ActionError, defineWorld } from '@worlddevkit/server'
+
+const world = defineWorld({
+  url: 'https://plots.example',
+  name: 'Plots',
+  entities: [{ type: 'game:plot', id: 'p1', attributes: { owner: null }, capabilities: ['game:claim'] }],
+  actions: {
+    'game:claim': {
+      targetTypes: ['game:plot'],
+      handler({ target, caller, world }) {
+        if (target!.attributes.owner) throw new ActionError('taken', 'Already claimed')
+        world.update('game:plot', target!.ref.id, { attributes: { owner: caller!.id }, capabilities: [] })
+        return { claimed: target!.ref.id }
+      },
+    },
+  },
+})
+
+// Server-driven changes run in the same one-at-a-time queue as actions:
+setInterval(() => world.change((store) => store.emit('game:tick', Date.now())), 10_000) // declare 'game:tick' in events
+```
+
+| Option | What it does |
+| --- | --- |
+| `actions` | `{ 'ns:name': { handler, requiresCaller?, targetTypes? } }`. Handlers get `input`, `target`, `ifVersion`, `caller` and `world` (`get`, `list`, `create`, `update`, `remove`, `emit`), and return the output. Throw `ActionError(code, message, status?)` to refuse. |
+| `events` | World-defined event names handlers may `emit`. |
+| `entityTypes` | Types the world advertises, including ones only created at runtime. |
+| `sessions` | Session store; in-memory, 24-hour sessions by default (`createMemorySessions`). |
+| `actionRateLimiter` | Per-session action limit; 120 a minute by default. |
+
+The kit enforces sessions, target capabilities and `ifVersion` before your handler runs, runs actions one at a time, and publishes every public change on `{api}/events`. Building on `createWorldHandler` directly, pass `actions: createActionDispatcher(...)` and `events: createEventHub()`.
+
 ## Options
 
 Both `defineWorld` and `createWorldHandler` accept:

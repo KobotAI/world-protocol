@@ -27,7 +27,7 @@ The starter already works end to end: a website at `/`, the API, sample entities
 
 ## Rules
 
-- Level 1 is read-only. Visitor-changed state (game moves, scores, votes) lives in the browser or your own routes outside `/api/world/v0`; say so in your report.
+- Level 1 is read-only. For games or anything visitors change, make it Level 2: add `actions` to `defineWorld` (sessions, capabilities gate actions, `ifVersion` prevents lost updates, `ActionError` for rule refusals, live events at `{api}/events`). Never put secrets in public entities. Test with `assertLevel2Conformance` and a two-player race.
 - Scope: 2–4 entity types, 15–40 entities with relationships; one explore view designed for the domain, plus list/search and detail views.
 - Work in phases: data and API with `npm run typecheck` and `npm test` passing, then the website, then tests and polish.
 - Keep the list/search view as the accessible path; keep loading, empty, not-found and error states.
