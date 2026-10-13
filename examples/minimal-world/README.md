@@ -8,7 +8,7 @@ A synthetic, credential-free, database-free World Protocol Level 1 server for No
 - canonical `POST /api/world/v0/actions/wp%3Adiscover`
 - opaque-cursor pagination and protocol errors
 
-The example uses `createWorldHandler` from `@worlddevkit/server`; `src/world.js` exports the discovery document, the handler, and a Fetch-compatible `fetchWorld` function.
+The example uses `defineWorld` from `@worlddevkit/server`, which builds the discovery document, the entity source and the handler from one list of entities. `src/world.js` exports the world, its discovery document, and a Fetch-compatible `fetchWorld` function. For a world with its own website, start from `npm create worlddevkit` instead.
 
 ## Run
 
@@ -39,11 +39,11 @@ npm test
 
 The test passes `fetchWorld` directly to `@worlddevkit/testing`, so it does not open a port or need TLS. A page size of one forces pagination to be exercised.
 
-The discovery identity is the reserved synthetic URL `https://minimal-world.example`; the advertised API endpoint points at the local Node adapter. No request is sent to the `.example` domain.
+The test sets the discovery identity to the reserved synthetic URL `https://minimal-world.example`, because conformance requires HTTPS. No request is sent to the `.example` domain. When you run the server, `WORLD_URL` defaults to `http://localhost:$PORT`, so discovery matches the port in use.
 
 ## Make it yours
 
-Edit `src/world.js` to change metadata, entity types, fixtures, and the `source.list`/`source.get` methods. Keep `src/server.js` unchanged unless you need a different Node adapter. Keep public entity IDs stable.
+Edit `src/world.js` to change metadata and entities. `defineWorld` throws at startup on duplicate IDs or relationships to entities that do not exist. To serve entities from your own storage instead, implement an `EntitySource` and use `createWorldHandler`. Keep `src/server.js` unchanged unless you need a different Node adapter. Keep public entity IDs stable.
 
 ## Deploy
 

@@ -53,6 +53,12 @@ export interface DefineWorldOptions {
   /** Defaults to `*`: Level 1 reads are public. */
   cors?: WorldHandlerOptions['cors']
   maxPageSize?: number
+  /** Attributes `wp:discover` text search matches. See `WorldHandlerOptions.searchFields`. */
+  searchFields?: WorldHandlerOptions['searchFields']
+  /** Trusted reverse-proxy hops for rate limiting. See `WorldHandlerOptions.trustProxy`. */
+  trustProxy?: WorldHandlerOptions['trustProxy']
+  /** Rate-limit key override. See `WorldHandlerOptions.clientKey`. */
+  clientKey?: WorldHandlerOptions['clientKey']
 }
 
 export interface DefinedWorld {
@@ -136,6 +142,9 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     rateLimiter: options.rateLimiter ?? createMemoryRateLimiter({ limit: 60, windowMs: 60_000 }),
     cors,
     ...(options.maxPageSize !== undefined ? { maxPageSize: options.maxPageSize } : {}),
+    ...(options.searchFields !== undefined ? { searchFields: options.searchFields } : {}),
+    ...(options.trustProxy !== undefined ? { trustProxy: options.trustProxy } : {}),
+    ...(options.clientKey !== undefined ? { clientKey: options.clientKey } : {}),
   })
 
   const handles = (url: string | URL): boolean => {

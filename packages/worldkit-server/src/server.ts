@@ -28,7 +28,24 @@ export interface WorldHandlerOptions {
   rateLimiter: RateLimiter
   cors?: '*' | readonly string[]
   maxPageSize?: number
+  /**
+   * Attributes that `wp:discover` text search matches. Either one list for every entity type, or
+   * a list per type (types without an entry use the default). Defaults to
+   * `name`, `description`, `tagline` and `category`.
+   */
+  searchFields?: readonly string[] | Readonly<Record<string, readonly string[]>>
+  /**
+   * How many reverse proxies in front of this server append to `X-Forwarded-For`. The rate limiter
+   * keys each client by the address the outermost trusted proxy saw, which a client cannot forge.
+   * Defaults to 1 (one platform proxy or load balancer). Set `false` when nothing in front of the
+   * server sets the header, and pass `clientKey` if your runtime knows the socket address.
+   */
+  trustProxy?: boolean | number
+  /** Derives the rate-limit key for a request. Overrides `trustProxy` when it returns a value. */
+  clientKey?: (request: Request) => string | undefined
 }
+
+export const DEFAULT_SEARCH_FIELDS: readonly string[] = ['name', 'description', 'tagline', 'category']
 
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 50
@@ -57,7 +74,7 @@ export function createWorldHandler(options: WorldHandlerOptions): (request: Requ
       const isDiscoverAlias = path[0] === 'discover' && path.length === 1 && (request.method === 'GET' || request.method === 'POST')
       const isDiscoverAction = path[0] === 'actions' && path[1] === 'wp:discover' && path.length === 2 && request.method === 'POST'
       if (isDiscoverAlias || isDiscoverAction) {
-        const limited = await options.rateLimiter.consume(rateLimitKey(request))
+        const limited = await options.rateLimiter.consume(rateLimitKey(request, options))
         if (!limited.allowed) {
           const headers = new Headers(cors)
           headers.set('Retry-After', String(limited.retryAfterSeconds ?? 60))
@@ -108,7 +125,8 @@ async function discover(
     if (query.layer && entity.layer !== query.layer) return false
     if (category && String(attributes.category ?? '').toLocaleLowerCase() !== category) return false
     if (!text) return true
-    return [attributes.name, attributes.description, attributes.tagline, attributes.category]
+    return searchFieldsFor(entity.ref.type, options.searchFields)
+      .map((field) => attributes[field])
       .some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(text))
   })
   const result: DiscoverResult = paginate(matches, query.cursor ?? null, clampLimit(query.limit, options.maxPageSize))
@@ -212,9 +230,39 @@ function pathAfterBase(pathname: string, basePath: string): string[] | null {
   }
 }
 
-function rateLimitKey(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return `discover:${forwarded || request.headers.get('x-real-ip') || 'anonymous'}`
+function searchFieldsFor(type: string, setting: WorldHandlerOptions['searchFields']): readonly string[] {
+  if (setting === undefined) return DEFAULT_SEARCH_FIELDS
+  if (isFieldList(setting)) return setting
+  return setting[type] ?? DEFAULT_SEARCH_FIELDS
+}
+
+function isFieldList(value: NonNullable<WorldHandlerOptions['searchFields']>): value is readonly string[] {
+  return Array.isArray(value)
+}
+
+/**
+ * Rate-limit key for a request. `X-Forwarded-For` is a list each proxy appends to, so only the
+ * entries added by trusted proxies are reliable: the client controls everything to their left.
+ * With N trusted proxies the client's real address is the Nth entry from the right.
+ */
+function rateLimitKey(request: Request, options: WorldHandlerOptions): string {
+  const custom = options.clientKey?.(request)
+  if (custom) return `discover:${custom}`
+
+  const trusted = options.trustProxy === undefined || options.trustProxy === true
+    ? 1
+    : options.trustProxy === false ? 0 : Math.max(0, Math.floor(options.trustProxy))
+  if (trusted > 0) {
+    const hops = (request.headers.get('x-forwarded-for') ?? '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const client = hops.length >= trusted ? hops[hops.length - trusted] : hops[0]
+    if (client) return `discover:${client}`
+    const realIp = request.headers.get('x-real-ip')?.trim()
+    if (realIp) return `discover:${realIp}`
+  }
+  return 'discover:anonymous'
 }
 
 function corsHeaders(request: Request, setting: WorldHandlerOptions['cors']): Headers {
@@ -239,7 +287,10 @@ function json(value: unknown, status: number, headers: Headers): Response {
 
 function errorResponse(status: number, code: string, message: string, headers: Headers): Response {
   const body: ProtocolError = { code, message }
-  return json(body, status, headers)
+  const response = json(body, status, headers)
+  // Errors, including 429s, describe this moment only. Shared caches must not keep serving them.
+  response.headers.set('Cache-Control', 'no-store')
+  return response
 }
 
 class RequestError extends Error {

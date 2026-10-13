@@ -51,6 +51,8 @@ The discovery document must advertise the same HTTPS origin clients use. Never a
 
 ## Scaling
 
+The rate limiter keys clients by the address in `X-Forwarded-For` recorded by the proxy in front of your world, assuming one proxy (`trustProxy: 1`). If your platform puts two proxies in front of the app (for example a CDN and a load balancer), pass `trustProxy: 2` to `defineWorld`; if nothing in front of it sets the header, pass `trustProxy: false`.
+
 The starter keeps entities and rate limits in process. Before running multiple instances:
 
 * replace the in-memory entity source with shared durable storage;

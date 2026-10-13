@@ -108,3 +108,17 @@ describe('defineWorld fetch', () => {
     expect(body.output.entities.map((entity) => entity.ref.id)).toEqual(['library'])
   })
 })
+
+describe('defineWorld handler options', () => {
+  it('passes search fields through to discovery', async () => {
+    const defined = defineWorld({
+      url: 'https://example.world',
+      name: 'X',
+      entities: [{ type: 'wp:place', id: 'a', attributes: { name: 'A', notes: 'secret garden' } }],
+      searchFields: ['notes'],
+    })
+    const response = await defined.fetch('https://example.world/api/world/v0/discover?text=garden')
+    const body = await response.json() as PaginatedEntityCollection
+    expect(body.entities.map((entity) => entity.ref.id)).toEqual(['a'])
+  })
+})
