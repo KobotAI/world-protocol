@@ -14,6 +14,16 @@ import {
   type WorldHandlerOptions,
 } from './server.js'
 import {
+  ASSET_TYPE,
+  ASSETS_EXTENSION,
+  PLACEMENT_TYPE,
+  PLACEMENTS_EXTENSION,
+  createPlacementHost,
+  sanitizeAsset,
+  type PlacementHost,
+  type PlacementPolicy,
+} from './assets.js'
+import {
   ENTITY_CHANGED_EVENT,
   ENTITY_REMOVED_EVENT,
   LEVEL_2_EXTENSION,
@@ -86,6 +96,17 @@ export interface DefineWorldOptions {
   actionRateLimiter?: RateLimiter
   /** Level 2: rate limit for new sessions, per client address. Defaults to 10 a minute. */
   sessionRateLimiter?: RateLimiter
+  /**
+   * The world owner's secret (at least 16 characters, from an environment variable, never in
+   * code). Requests with `Authorization: Bearer <adminToken>` may run `requiresAdmin` actions,
+   * such as accepting placements.
+   */
+  adminToken?: string
+  /**
+   * Host other worlds' assets: adds `wp:offer`, `wp:accept`, `wp:remove` and `wp:placements`,
+   * and serves accepted assets as `wp:placement` entities. Needs `adminToken`.
+   */
+  placements?: PlacementPolicy
 }
 
 export interface DefinedWorld {
@@ -103,6 +124,13 @@ export interface DefinedWorld {
    * one-at-a-time queue as actions, so it never interleaves with one.
    */
   change<T>(task: (world: WorldStore) => T | Promise<T>): Promise<T>
+  /**
+   * Present when the world hosts placements. Call `sync()` to refresh placements from their
+   * sources now, or `startSync(ms)` to keep them fresh: it polls every source on that interval
+   * and follows sources' live events streams, so changes arrive within a second. It returns a
+   * function that stops it.
+   */
+  placements?: PlacementHost & { startSync(intervalMs?: number): () => void }
   /**
    * Serves `/.well-known/world.json` and the Level 1 API, with the same signature as global
    * `fetch`, so it can be passed straight to `WorldClient` and the conformance suite.
@@ -150,7 +178,17 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     }
   }
 
-  const entityTypes = uniqueTypes([...(options.entityTypes ?? []), ...byType.keys()])
+  const local = isLocalOrigin(worldId)
+  for (const entity of entities) {
+    if (entity.ref.type !== ASSET_TYPE) continue
+    const checked = sanitizeAsset(entity, { allowLocal: local })
+    if (!checked.ok) throw new Error(`defineWorld: asset ${entity.ref.id}: ${checked.error}`)
+  }
+  if (options.placements && !options.adminToken) {
+    throw new Error('defineWorld: placements need an adminToken, so only the owner can accept offers. Set one from an environment variable.')
+  }
+
+  const entityTypes = uniqueTypes([...(options.entityTypes ?? []), ...byType.keys(), ...(options.placements ? [PLACEMENT_TYPE] : [])])
   if (entityTypes.length === 0) throw new Error('defineWorld: a world needs at least one entity type')
 
   const discovery: WorldDiscoveryDocument = {
@@ -164,8 +202,11 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
   }
 
   const actionNames = Object.keys(options.actions ?? {})
-  const level2 = actionNames.length > 0
+  const level2 = actionNames.length > 0 || options.placements !== undefined
   for (const name of actionNames) {
+    if (['wp:offer', 'wp:accept', 'wp:remove', 'wp:placements'].includes(name)) {
+      throw new Error(`defineWorld: ${name} is provided by placements and cannot be redefined`)
+    }
     if (name === 'wp:discover' || name === 'wp:session') throw new Error(`defineWorld: ${name} is built in and cannot be redefined`)
     if (!/^[a-z0-9-]+:[a-z0-9_.-]+$/i.test(name)) throw new Error(`defineWorld: action "${name}" must be namespaced, for example "game:${name}"`)
   }
@@ -180,16 +221,37 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
   const queue = createSerialQueue()
   const store = createMemoryStore(entities, { world: worldId, hub, events: declaredEvents, types: entityTypes })
   const source: EntitySource = store.source
-  const dispatcher = level2
-    ? createActionDispatcher({ actions: options.actions ?? {}, store, sessions: options.sessions ?? createMemorySessions(), queue })
+  const read = { get: store.get, list: store.list }
+  const change = <T>(task: (world: WorldStore) => T | Promise<T>): Promise<T> =>
+    queue.run(() => {
+      const recording = store.recording()
+      return task(recording.store)
+    })
+
+  const placementHost = options.placements
+    ? createPlacementHost(worldId, { allowLocal: local, ...options.placements }, { read, change })
     : undefined
 
+  const dispatcher = level2
+    ? createActionDispatcher({
+        actions: { ...(options.actions ?? {}), ...(placementHost?.actions ?? {}) },
+        store,
+        sessions: options.sessions ?? createMemorySessions(),
+        queue,
+        ...(options.adminToken ? { adminToken: options.adminToken } : {}),
+      })
+    : undefined
+
+  const extensions: string[] = []
+  if (entityTypes.includes(ASSET_TYPE)) extensions.push(ASSETS_EXTENSION)
   if (dispatcher) {
     discovery.actions = ['wp:discover', ...dispatcher.names]
     discovery.endpoints.events = `${worldId}${apiPath}/events`
     discovery.events = [ENTITY_CHANGED_EVENT, ENTITY_REMOVED_EVENT, ...declaredEvents]
-    discovery.extensions = [LEVEL_2_EXTENSION]
+    extensions.push(LEVEL_2_EXTENSION)
   }
+  if (placementHost) extensions.push(PLACEMENTS_EXTENSION)
+  if (extensions.length > 0) discovery.extensions = extensions
 
   const cors = options.cors ?? '*'
   const handler = createWorldHandler({
@@ -220,13 +282,27 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
     discovery,
     source,
     entities,
-    read: { get: store.get, list: store.list },
-    change(task) {
-      return queue.run(() => {
-        const recording = store.recording()
-        return task(recording.store)
-      })
-    },
+    read,
+    change,
+    ...(placementHost
+      ? {
+          placements: {
+            ...placementHost,
+            startSync(intervalMs = 60_000) {
+              // Poll every source on a timer, and react at once to sources with live events.
+              const timer = setInterval(() => {
+                placementHost.sync().catch((error: unknown) => console.error('[WorldKit] Placement sync failed:', error instanceof Error ? error.message : error))
+              }, Math.max(5_000, intervalMs))
+              ;(timer as { unref?: () => void }).unref?.()
+              const stopWatching = placementHost.watchSources(intervalMs)
+              return () => {
+                clearInterval(timer)
+                stopWatching()
+              }
+            },
+          },
+        }
+      : {}),
     handles,
     async fetch(input, init) {
       const request = input instanceof Request && init === undefined ? input : new Request(input, init)
@@ -298,6 +374,11 @@ function normalizeOrigin(value: string): string {
     throw new Error(`defineWorld: url must be an origin with no path, query or fragment, received "${value}"`)
   }
   return url.origin
+}
+
+function isLocalOrigin(origin: string): boolean {
+  const host = new URL(origin).hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.test') || host === '::1' || /^127\./.test(host)
 }
 
 function normalizeOriginOrNull(value: string): string | null {

@@ -142,13 +142,30 @@ setInterval(() => world.change((store) => store.emit('game:tick', Date.now())), 
 
 | Option | What it does |
 | --- | --- |
-| `actions` | `{ 'ns:name': { handler, requiresCaller?, targetTypes? } }`. Handlers get `input`, `target`, `ifVersion`, `caller` and `world` (`get`, `list`, `create`, `update`, `remove`, `emit`), and return the output. Throw `ActionError(code, message, status?)` to refuse. |
+| `actions` | `{ 'ns:name': { handler, requiresCaller?, requiresAdmin?, targetTypes?, prepare? } }`. `prepare` runs slow work (network calls) before the action joins the queue; its result arrives as `prepared`. Handlers get `input`, `target`, `ifVersion`, `caller` and `world` (`get`, `list`, `create`, `update`, `remove`, `emit`), and return the output. Throw `ActionError(code, message, status?)` to refuse. |
 | `events` | World-defined event names handlers may `emit`. |
 | `entityTypes` | Types the world advertises, including ones only created at runtime. |
 | `sessions` | Session store; in-memory, 24-hour sessions by default (`createMemorySessions`). |
 | `actionRateLimiter` | Per-session action limit; 120 a minute by default. |
+| `sessionRateLimiter` | New sessions per client address; 10 a minute by default. |
+| `adminToken` | The owner's secret (16+ characters, from an environment variable). Sent as a Bearer token, it runs `requiresAdmin` actions. |
 
 The kit enforces sessions, target capabilities and `ifVersion` before your handler runs, runs actions one at a time, and publishes every public change on `{api}/events`. Building on `createWorldHandler` directly, pass `actions: createActionDispatcher(...)` and `events: createEventHub()`.
+
+## Sharing assets between worlds
+
+Publish products or items with `defineAsset`, and host other worlds' assets with `placements`. See [Assets and placements](../../reference/assets-and-placements.md).
+
+```ts
+import { defineAsset, defineWorld } from '@worlddevkit/server'
+
+const shop = defineWorld({ url, name, entities: [defineAsset({ id: 'stove', name: 'Gas Stove', image: { url: img, alt: 'A gas stove' }, web: page })] })
+
+const game = defineWorld({ url, name, entities, adminToken: process.env.WORLD_ADMIN_TOKEN, placements: { max: 5 } })
+const stop = game.placements!.startSync() // poll sources and follow their live events
+```
+
+Hosts fetch other worlds over https only, refuse private addresses and redirects, cap sizes and time, and run fetches outside the action queue (an action's `prepare` step), so slow publishers never delay players.
 
 ## Options
 

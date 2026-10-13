@@ -43,8 +43,10 @@ export class ActionError extends Error {
 }
 
 export interface Caller {
-  /** Opaque, stable for the life of the session. */
+  /** Opaque, stable for the life of the session. `admin` for the world's owner. */
   id: string
+  /** True when the request carried the world's admin token. */
+  admin?: boolean
 }
 
 /** Changes to apply to an entity. Attributes are merged shallowly; other fields are replaced. */
@@ -55,6 +57,7 @@ export interface EntityChanges {
   visibility?: EntityEnvelope['visibility']
   location?: JsonObject
   links?: Record<string, string>
+  sponsorship?: JsonObject
 }
 
 export interface NewEntity {
@@ -67,6 +70,7 @@ export interface NewEntity {
   location?: JsonObject
   links?: Record<string, string>
   layer?: string
+  sponsorship?: JsonObject
 }
 
 export interface UpdateOptions {
@@ -99,6 +103,8 @@ export interface ActionContext {
   caller: Caller | null
   world: WorldStore
   request: Request
+  /** What `prepare` returned, or null when the action has no `prepare`. */
+  prepared: JsonValue
 }
 
 export interface ActionDefinition {
@@ -110,8 +116,16 @@ export interface ActionDefinition {
   handler(context: ActionContext): JsonValue | void | Promise<JsonValue | void>
   /** Require a session token. Defaults to true. */
   requiresCaller?: boolean
+  /** Require the world's admin token (the owner). Implies a caller. */
+  requiresAdmin?: boolean
   /** Require a `target` entity of one of these types. When set, requests without a target get 400. */
   targetTypes?: readonly string[]
+  /**
+   * Slow work that does not touch world state, such as fetching from another world. It runs
+   * before the action joins the one-at-a-time queue, so it never delays other actions. Its
+   * result reaches the handler as `prepared`. Throw `ActionError` to refuse.
+   */
+  prepare?(context: { input: JsonObject; caller: Caller | null; request: Request }): Promise<JsonValue> | JsonValue
 }
 
 export type ActionRegistry = Readonly<Record<string, ActionDefinition>>
@@ -373,6 +387,7 @@ export function createMemoryStore(initial: readonly EntityEnvelope[], options: M
         if (input.location) entity.location = input.location
         if (input.links) entity.links = input.links
         if (input.layer) entity.layer = input.layer
+        if (input.sponsorship) entity.sponsorship = input.sponsorship
         const frozen = freeze(entity)
         entries.set(input.id, frozen)
         publishChange(frozen, recorder)
@@ -397,6 +412,7 @@ export function createMemoryStore(initial: readonly EntityEnvelope[], options: M
         }
         if (patch.location) next.location = patch.location
         if (patch.links) next.links = patch.links
+        if (patch.sponsorship) next.sponsorship = patch.sponsorship
         const frozen = freeze(next)
         collection(type).set(id, frozen)
         if (current.visibility === 'public' && frozen.visibility !== 'public') {
@@ -494,6 +510,11 @@ export interface ActionDispatcherOptions {
   sessions?: SessionStore
   /** Share one queue with server-side changes (timers, imports) so they never interleave with actions. */
   queue?: SerialQueue
+  /**
+   * The world owner's secret. A request with `Authorization: Bearer <adminToken>` acts as the
+   * caller `{ id: 'admin', admin: true }`, which `requiresAdmin` actions need.
+   */
+  adminToken?: string
 }
 
 export interface DispatchResult {
@@ -513,29 +534,61 @@ export function createActionDispatcher(options: ActionDispatcherOptions): Action
   const names = [...(options.sessions ? [SESSION_ACTION] : []), ...Object.keys(options.actions)]
   const queue = options.queue ?? createSerialQueue()
 
+  const adminToken = options.adminToken && options.adminToken.length >= 16 ? options.adminToken : undefined
+  if (options.adminToken && !adminToken) throw new Error('adminToken must be at least 16 characters')
+
   const callerFor = (request: Request): Caller | null => {
     const header = request.headers.get('authorization') ?? ''
     const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
-    return match?.[1] && options.sessions ? options.sessions.resolve(match[1]) : null
+    const token = match?.[1]
+    if (!token) return null
+    if (adminToken && constantTimeEqual(token, adminToken)) return { id: 'admin', admin: true }
+    return options.sessions ? options.sessions.resolve(token) : null
   }
 
-  const run = async (name: string, request: Request): Promise<DispatchResult> => {
+  type Preflight =
+    | { done: DispatchResult }
+    | { definition: ActionDefinition; body: Exclude<ParsedBody, { error: DispatchResult }>; caller: Caller | null; prepared: JsonValue | undefined }
+
+  // Everything that does not read or change world state runs outside the queue, so a slow
+  // `prepare` (a network call) never holds up other players' actions.
+  const preflight = async (name: string, request: Request): Promise<Preflight> => {
     if (name === SESSION_ACTION && options.sessions) {
       const session = options.sessions.issue()
-      return ok({ token: session.token, caller: session.caller.id, expiresAt: session.expiresAt }, [], [])
+      return { done: ok({ token: session.token, caller: session.caller.id, expiresAt: session.expiresAt }, [], []) }
     }
 
     const definition = Object.hasOwn(options.actions, name) ? options.actions[name] : undefined
-    if (!definition) return fail(404, 'unknown_action', `Unknown action: ${name}`)
+    if (!definition) return { done: fail(404, 'unknown_action', `Unknown action: ${name}`) }
 
     const body = await readActionBody(request)
-    if ('error' in body) return body.error
+    if ('error' in body) return { done: body.error }
 
     const caller = callerFor(request)
+    if (definition.requiresAdmin && !caller?.admin) {
+      return { done: fail(caller ? 403 : 401, caller ? 'admin_only' : 'unauthenticated', `Action ${name} is for the world's owner`) }
+    }
     if ((definition.requiresCaller ?? true) && !caller) {
-      return fail(401, 'unauthenticated', `Action ${name} needs a session: call ${SESSION_ACTION} first and send its token as a Bearer token`)
+      return { done: fail(401, 'unauthenticated', `Action ${name} needs a session: call ${SESSION_ACTION} first and send its token as a Bearer token`) }
+    }
+    if (!body.target && definition.targetTypes) {
+      return { done: fail(400, 'invalid_target', `Action ${name} needs a target of type ${definition.targetTypes.join(' or ')}`) }
     }
 
+    let prepared: JsonValue | undefined
+    if (definition.prepare) {
+      try {
+        prepared = await definition.prepare({ input: body.input, caller, request })
+      } catch (error) {
+        if (error instanceof ActionError) return { done: fail(error.status, error.code, error.message, error.details) }
+        throw error
+      }
+    }
+    return { definition, body, caller, prepared }
+  }
+
+  const execute = async (name: string, request: Request, ready: Exclude<Preflight, { done: DispatchResult }>): Promise<DispatchResult> => {
+    const { definition, body, caller, prepared } = ready
     let target: EntityEnvelope | null = null
     if (body.target) {
       target = options.store.get(body.target.type, body.target.id)
@@ -551,8 +604,6 @@ export function createActionDispatcher(options: ActionDispatcherOptions): Action
       if (!target.capabilities.includes(name)) {
         return fail(403, 'not_allowed', `${target.ref.type}/${target.ref.id} does not allow ${name} right now`)
       }
-    } else if (definition.targetTypes) {
-      return fail(400, 'invalid_target', `Action ${name} needs a target of type ${definition.targetTypes.join(' or ')}`)
     }
 
     const recording = options.store.recording()
@@ -564,6 +615,7 @@ export function createActionDispatcher(options: ActionDispatcherOptions): Action
         caller,
         world: recording.store,
         request,
+        prepared: prepared ?? null,
       })
       const { changed, removed } = recording.finish()
       return ok(output ?? null, changed, removed)
@@ -576,10 +628,12 @@ export function createActionDispatcher(options: ActionDispatcherOptions): Action
   return {
     names,
     callerFor,
-    dispatch(name, request) {
+    async dispatch(name, request) {
+      const ready = await preflight(name, request)
+      if ('done' in ready) return ready.done
       // One action at a time: a handler may read, await, then write without another action
       // changing the world in between.
-      return queue.run(() => run(name, request))
+      return queue.run(() => execute(name, request, ready))
     },
   }
 }
@@ -639,4 +693,14 @@ function fail(status: number, code: string, message: string, details?: JsonValue
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a)
+  const right = new TextEncoder().encode(b)
+  let difference = left.length ^ right.length
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    difference |= (left[index] ?? 0) ^ (right[index] ?? 0)
+  }
+  return difference === 0
 }

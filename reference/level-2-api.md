@@ -32,6 +32,10 @@ POST {api}/actions/wp%3Asession
 
 Send the token as `Authorization: Bearer <token>` on later actions. New sessions are rate-limited per client address (10 a minute by default in the reference server), separately from actions. The world identifies the caller by it. Actions require a session unless the world says otherwise. A session is anonymous: it says "the same caller as before", not who the person is.
 
+### Owner actions
+
+Some actions belong to the world's owner, such as accepting placements. The owner sends the world's admin token as `Authorization: Bearer <admin token>`. Other callers get `401 unauthenticated` (no token) or `403 admin_only` (a player's token).
+
 ## Actions
 
 ```

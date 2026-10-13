@@ -92,3 +92,34 @@ describe('client and server together', () => {
     expect(refused).toMatchObject({ status: 422, code: 'nope', message: 'Never works' })
   })
 })
+
+describe('assets and placements', () => {
+  it('a shop and a game that hosts its assets both conform', async () => {
+    const { defineAsset } = await import('@worlddevkit/server')
+    const { runAssetConformance } = await import('./assets.js')
+    const shop = defineWorld({
+      url: 'https://shop.example',
+      name: 'Shop',
+      entities: [defineAsset({ id: 'stove', name: 'Gas Stove', image: { url: 'https://shop.example/stove.png', alt: 'A gas stove' }, web: 'https://shop.example/p/stove' })],
+    })
+    const game = defineWorld({
+      url: 'https://game.example',
+      name: 'Game',
+      entities: [{ type: 'game:stall', id: 's1', attributes: { name: 'Stall' } }],
+      adminToken: 'admin-token-0123456789abcdef',
+      placements: { accept: 'auto', fetch: (input, init) => shop.fetch(new Request(input as string, init)) },
+    })
+    const client = new WorldClient(game.discovery, { fetch: game.fetch })
+    const session = await client.startSession()
+    await client.withAccessToken(session.token).invoke('wp:offer', { asset: { world: 'https://shop.example', id: 'stove' } })
+
+    for (const world of [shop, game]) {
+      const level1 = await runLevel1Conformance({ world: world.discovery.id, fetch: world.fetch })
+      expect(level1.checks.filter((check) => !check.passed)).toEqual([])
+      const assets = await runAssetConformance({ world: world.discovery.id, fetch: world.fetch })
+      expect(assets.problems).toEqual([])
+    }
+    expect((await runAssetConformance({ world: game.discovery.id, fetch: game.fetch })).checked).toEqual({ assets: 0, placements: 1 })
+    await assertLevel2Conformance({ world: game.discovery.id, fetch: game.fetch })
+  })
+})
