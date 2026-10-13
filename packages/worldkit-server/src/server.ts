@@ -8,6 +8,8 @@ import type {
   WorldDiscoveryDocument,
 } from '@worlddevkit/spec'
 
+import { eventStreamResponse, type ActionDispatcher, type EventHub } from './level2.js'
+
 export interface EntitySource {
   list(type: string): Promise<readonly EntityEnvelope[]>
   get(type: string, id: string): Promise<EntityEnvelope | null>
@@ -43,6 +45,15 @@ export interface WorldHandlerOptions {
   trustProxy?: boolean | number
   /** Derives the rate-limit key for a request. Overrides `trustProxy` when it returns a value. */
   clientKey?: (request: Request) => string | undefined
+  /**
+   * Level 2: answers `POST {api}/actions/{name}` for every action except `wp:discover`.
+   * `defineWorld` builds one from its `actions`; use `createActionDispatcher` to build your own.
+   */
+  actions?: ActionDispatcher
+  /** Level 2: serves `GET {api}/events` as server-sent events from this hub. */
+  events?: EventHub
+  /** Rate limiter for Level 2 actions, keyed per caller (or per client without a session). Defaults to `rateLimiter`. */
+  actionRateLimiter?: RateLimiter
 }
 
 export const DEFAULT_SEARCH_FIELDS: readonly string[] = ['name', 'description', 'tagline', 'category']
@@ -71,6 +82,9 @@ export function createWorldHandler(options: WorldHandlerOptions): (request: Requ
         const entity = await options.source.get(path[1] ?? '', path[2] ?? '')
         return entity && isPublic(entity) ? json(entity, 200, cors) : errorResponse(404, 'entity_not_found', 'Entity not found', cors)
       }
+      if (request.method === 'GET' && path[0] === 'events' && path.length === 1 && options.events) {
+        return eventStreamResponse(request, options.events, cors)
+      }
       const isDiscoverAlias = path[0] === 'discover' && path.length === 1 && (request.method === 'GET' || request.method === 'POST')
       const isDiscoverAction = path[0] === 'actions' && path[1] === 'wp:discover' && path.length === 2 && request.method === 'POST'
       if (isDiscoverAlias || isDiscoverAction) {
@@ -86,6 +100,22 @@ export function createWorldHandler(options: WorldHandlerOptions): (request: Requ
             ? await parseDiscoverBody(request)
             : discoverQueryFromUrl(url)
         return await discover(query, options, cors, isDiscoverAction)
+      }
+
+      if (request.method === 'POST' && path[0] === 'actions' && path.length === 2 && path[1]) {
+        if (!options.actions) return errorResponse(404, 'unknown_action', `Unknown action: ${path[1]}`, cors)
+        const caller = options.actions.callerFor(request)
+        const limiter = options.actionRateLimiter ?? options.rateLimiter
+        const limited = await limiter.consume(caller ? `action:${caller.id}` : `action:${rateLimitKey(request, options)}`)
+        if (!limited.allowed) {
+          const headers = new Headers(cors)
+          headers.set('Retry-After', String(limited.retryAfterSeconds ?? 60))
+          return errorResponse(429, 'rate_limited', 'Action rate limit exceeded', headers)
+        }
+        const result = await options.actions.dispatch(path[1], request)
+        const response = json(result.body, result.status, cors)
+        response.headers.set('Cache-Control', 'no-store')
+        return response
       }
 
       return errorResponse(404, 'not_found', 'Unknown World Protocol route', cors)
@@ -267,7 +297,7 @@ function rateLimitKey(request: Request, options: WorldHandlerOptions): string {
 
 function corsHeaders(request: Request, setting: WorldHandlerOptions['cors']): Headers {
   const headers = new Headers({
-    'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, Last-Event-ID',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',

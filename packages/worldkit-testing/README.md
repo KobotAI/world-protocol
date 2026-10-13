@@ -53,6 +53,8 @@ The Level 1 checks cover:
 - advertised entity-type boundaries
 - public visibility only: no `connections` or `private` entity is served
 
+For a Level 2 world, also run `assertLevel2Conformance(target)`. It checks the `wp:level-2` discovery fields, `wp:session`, protocol errors for unknown actions and malformed requests, invalid tokens, and that the events stream answers `text/event-stream` promptly. It never sends valid input to your own actions, so it changes nothing beyond issuing one session.
+
 The target must advertise at least one entity type and `wp:discover`. Set `pageSize`, `maxPagesPerType`, or `corsOrigin` through the optional second argument.
 
 See [`examples/minimal-world`](../../examples/minimal-world) for a runnable in-memory conformance test.

@@ -16,6 +16,7 @@
 ## Reference
 
 * [Level 1 API](reference/level-1-api.md)
+* [Level 2 API](reference/level-2-api.md)
 * [OpenAPI 3.1](reference/openapi-3.1.md)
 * [Packages](reference/packages.md)
 

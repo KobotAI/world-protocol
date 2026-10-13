@@ -1,11 +1,17 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { handleRequest } from './app.js'
 
 const port = parsePort(process.env.PORT)
 const host = process.env.HOST ?? '127.0.0.1'
 
 const server = createServer(async (incoming, outgoing) => {
+  // Abort the request when the client goes away, so long-lived responses (the events stream)
+  // stop and release their resources.
+  const controller = new AbortController()
+  outgoing.on('close', () => controller.abort())
+
   try {
     const authority = incoming.headers.host ?? `localhost:${port}`
     const url = new URL(incoming.url ?? '/', `http://${authority}`)
@@ -14,6 +20,7 @@ const server = createServer(async (incoming, outgoing) => {
     const init: RequestInit & { duplex?: 'half' } = {
       method,
       headers: toHeaders(incoming.headers),
+      signal: controller.signal,
     }
 
     if (hasBody) {
@@ -23,9 +30,21 @@ const server = createServer(async (incoming, outgoing) => {
 
     const response = await handleRequest(new Request(url, init))
     outgoing.writeHead(response.status, Object.fromEntries(response.headers))
-    outgoing.end(Buffer.from(await response.arrayBuffer()))
+    if (!response.body || method === 'HEAD') {
+      outgoing.end()
+      return
+    }
+    // Stream the body instead of buffering it, so events reach clients as they happen.
+    outgoing.flushHeaders()
+    await pipeline(Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>), outgoing).catch((error: unknown) => {
+      if (!controller.signal.aborted) console.error(error)
+    })
   } catch (error) {
     console.error(error)
+    if (outgoing.headersSent) {
+      outgoing.destroy()
+      return
+    }
     outgoing.writeHead(500, { 'content-type': 'application/json' })
     outgoing.end(JSON.stringify({ code: 'internal_error', message: 'Unexpected server error' }))
   }
