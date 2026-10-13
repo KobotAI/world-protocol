@@ -10,6 +10,8 @@ Visitors browse by area on a map, filter by dish and price, and open a vendor to
 and nearby vendors.
 ```
 
+Write the brief in your own words. You don't need to name any technology: "make it a little 3D town you can spin around" is enough, and the agent picks the tools.
+
 Everything below is written for the agent.
 
 ---
@@ -34,6 +36,67 @@ Stay inside this budget unless the brief asks for more:
 - No database, authentication, Docker or cloud services. Demo data lives in the repository.
 
 Make routine decisions yourself: layout, fonts, sample content, component structure. Ask only if the brief leaves out something that would change the whole product, such as who the audience is.
+
+## The person may not be a developer
+
+Most people who write briefs for WorldDevKit have never used a framework, a terminal or a package manager. Work for them the way a good contractor would:
+
+- **Never ask a technical question.** Not which library, framework, database, port or file format. Decide, and explain the decision in plain words in your report. If you must ask something, ask about the product ("Should players be able to see each other's guesses?"), never the implementation.
+- **Read wishes, not words.** "Like a game", "feels alive", "I want to walk around the market" are requirements. Turn them into tools with the table below, without waiting to be told a library name.
+- **Supply what is missing.** If the brief implies something it doesn't spell out (a phone layout, a way back to the start, what happens when a round ends), build the obvious version.
+- **Write for them.** Your final report and the project README use plain words. Explain how to run it step by step, starting from installing Node.js from nodejs.org, and say what each step does.
+
+## Turn wishes into tools
+
+Use these defaults when the brief asks for the experience in the first column, in any words. Each library is installed from npm and served by the world itself (see below), so it works without internet access to a CDN.
+
+| The brief asks for | Use | Always also |
+| --- | --- | --- |
+| 3D, "like a game", a place to fly or walk around, a little town or world | Three.js (`three`), low-poly shapes built in code, `OrbitControls` for touch and mouse | A flat 2D fallback when WebGL is missing or slow; a still scene for reduced motion; render only when something changes |
+| A map of real places | An SVG map you draw from the coordinates. If the world will run with internet access and needs real streets, Leaflet (`leaflet`) with OpenStreetMap tiles and their attribution | A list of the same places as the accessible path |
+| Charts, stats, a leaderboard over time | Hand-drawn SVG for one or two charts; Chart.js (`chart.js`) for more | The numbers as text too |
+| Smooth movement, things popping, celebrations | CSS transitions and the Web Animations API, no library | Nothing moves for reduced motion |
+| Sound | The Web Audio API, no library | Muted until the person turns it on |
+| Drag and drop, drawing, swiping | Pointer events, no library | A button alternative for each gesture |
+| Photos of products or places | The image URLs in the data, with `loading="lazy"` and real `alt` text | A plain placeholder when an image fails |
+| Players, turns, scores, anything others see live | Level 2 (below) | Server-side rules; secrets never in public entities |
+
+Serve a browser library from npm without a build step:
+
+```ts
+// src/app.ts
+import { createStaticHandler, resolvePackageDirectory } from '@worlddevkit/server/node'
+
+const three = createStaticHandler({
+  root: resolvePackageDirectory('three', 'build', import.meta.url),
+  prefix: '/vendor/three/',
+  fallback: false,
+  cacheControl: 'public, max-age=86400',
+})
+const threeAddons = createStaticHandler({
+  root: resolvePackageDirectory('three', 'examples/jsm', import.meta.url),
+  prefix: '/vendor/three/addons/',
+  fallback: false,
+  cacheControl: 'public, max-age=86400',
+})
+
+export async function handleRequest(request: Request): Promise<Response> {
+  const { pathname } = new URL(request.url)
+  if (world.handles(request.url)) return world.fetch(request)
+  if (pathname.startsWith('/vendor/three/addons/')) return threeAddons(request)
+  if (pathname.startsWith('/vendor/three/')) return three(request)
+  return site(request)
+}
+```
+
+```html
+<!-- public/index.html, before your own script -->
+<script type="importmap">
+  { "imports": { "three": "/vendor/three/three.module.min.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+```
+
+Pin the exact version you tested (`npm install three@<version> --save-exact`), and load heavy libraries only when the view that needs them opens, so the first screen stays fast on a phone.
 
 ## Start
 
@@ -87,6 +150,8 @@ Turn the starter website in `public/` into the experience the brief describes:
 - **Detail:** each entity's attributes and links to related entities, with a URL of its own.
 - **States:** loading, empty search, not found and API error. The starter has all four; keep them working.
 - **Quality:** works from 360px phone width to desktop, visible focus, sufficient contrast, and `prefers-reduced-motion` respected.
+- **Dark mode:** if you add dark styles, check every screen in dark mode, not only the main one. Headers, cards, buttons and overlays all need dark colours, and every piece of text must stay readable. If you don't want to support dark mode, set `color-scheme: light` so browsers keep your light design.
+- **Ordinary phones:** assume a mid-range Android phone on a slow connection. Keep the first page light, lazy-load heavy views, and for 3D cap the pixel ratio at 2 and render only when something changes.
 
 Rules for the website:
 
@@ -103,7 +168,7 @@ curl -s http://localhost:8787/.well-known/world.json
 curl -s 'http://localhost:8787/api/world/v0/entities/<url-encoded-type>?limit=2'
 ```
 
-If you can drive a browser (Playwright, a browser tool or screenshots), open the site, go from the entry screen to an entity's detail page, follow a related link, come back through search, and fix what you see. If you cannot, say so in your report. Never claim a visual check you did not do.
+If you can drive a browser (Playwright, a browser tool or screenshots), open the site, go from the entry screen to an entity's detail page, follow a related link, come back through search, and fix what you see. Take screenshots at phone width in both light and dark mode, and look at each one. If you cannot, say so in your report. Never claim a visual check you did not do: say exactly which screens and modes you looked at.
 
 For a Level 2 world, Phase 2 also covers the play loop: joining, acting, seeing your own result, and seeing other players' changes arrive live without reloading.
 
@@ -193,9 +258,9 @@ const results = await Promise.allSettled([
 
 ## Final report
 
-End with a short report in this shape:
+End with a short report in plain words, for someone who may not be a developer, in this shape:
 
-1. **What I built:** audience, entity types and counts, the explore view, and how to run it.
+1. **What I built:** audience, entity types and counts, the explore view, the tools you chose and why (one plain sentence each), and how to run it, step by step from installing Node.js.
 2. **Files changed:** a list.
 3. **Checks run:** each command and its actual result. List only commands you ran.
 4. **Not verified:** anything you could not check, such as visual review without a browser.

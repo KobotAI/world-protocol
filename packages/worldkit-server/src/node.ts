@@ -2,8 +2,10 @@
  * Node.js-only helpers. Imported from `@worlddevkit/server/node` so the main entry point stays
  * free of `node:` modules and keeps running on any Fetch-compatible runtime.
  */
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
-import { extname, resolve, sep } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export interface StaticHandlerOptions {
@@ -18,6 +20,12 @@ export interface StaticHandlerOptions {
   fallback?: string | false
   /** Cache-Control for every file. Defaults to `no-cache`, which revalidates on each load. */
   cacheControl?: string
+  /**
+   * URL path the files are served under, for example `/vendor/three/`. Requests outside it get
+   * 404. Defaults to `/`. Use it with `resolvePackageDirectory` to serve a browser library
+   * installed from npm without copying it.
+   */
+  prefix?: string
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -57,6 +65,7 @@ export function createStaticHandler(options: StaticHandlerOptions): (request: Re
   const index = options.index ?? 'index.html'
   const fallback = options.fallback === undefined ? 'index.html' : options.fallback
   const cacheControl = options.cacheControl ?? 'no-cache'
+  const prefix = `/${(options.prefix ?? '/').replace(/^\/+|\/+$/g, '')}/`.replace('//', '/')
   let realRoot: Promise<string> | undefined
 
   return async (request) => {
@@ -71,6 +80,10 @@ export function createStaticHandler(options: StaticHandlerOptions): (request: Re
       return text(400, 'Bad request')
     }
     if (pathname.includes('\0')) return text(400, 'Bad request')
+    if (prefix !== '/') {
+      if (!pathname.startsWith(prefix)) return text(404, 'Not found')
+      pathname = `/${pathname.slice(prefix.length)}`
+    }
 
     realRoot ??= realpath(root)
     const base = await realRoot.catch(() => null)
@@ -109,6 +122,50 @@ async function resolveFile(base: string, pathname: string, index: string): Promi
   } catch {
     return null
   }
+}
+
+/**
+ * The directory of an npm package installed for this project, or a folder inside it, so a
+ * world can serve a browser library such as Three.js straight from `node_modules`:
+ *
+ * ```ts
+ * const three = createStaticHandler({
+ *   root: resolvePackageDirectory('three', 'build', import.meta.url),
+ *   prefix: '/vendor/three/',
+ *   fallback: false,
+ * })
+ * ```
+ *
+ * @param name     the package name, for example `three` or `@scope/name`
+ * @param subpath  a folder inside the package, for example `build` or `examples/jsm`
+ * @param from     `import.meta.url` of the calling module, so resolution starts from your project
+ */
+export function resolvePackageDirectory(name: string, subpath = '', from: string | URL): string {
+  const require = createRequire(from)
+  let entry: string
+  try {
+    entry = require.resolve(name)
+  } catch (cause) {
+    throw new Error(`Package "${name}" is not installed. Run npm install ${name}.`, { cause })
+  }
+  let directory = dirname(entry)
+  while (true) {
+    const manifest = join(directory, 'package.json')
+    if (existsSync(manifest)) {
+      try {
+        if ((JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name === name) break
+      } catch {
+        // Not a readable manifest; keep walking up.
+      }
+    }
+    const parent = dirname(directory)
+    if (parent === directory) throw new Error(`Could not find the folder of package "${name}"`)
+    directory = parent
+  }
+  const target = resolve(directory, subpath)
+  if (!isInside(directory, target)) throw new Error(`"${subpath}" is outside package "${name}"`)
+  if (!existsSync(target)) throw new Error(`Package "${name}" has no "${subpath}" folder`)
+  return target
 }
 
 function isInside(base: string, candidate: string): boolean {

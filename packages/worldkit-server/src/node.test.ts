@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createStaticHandler } from './node.js'
+import { createStaticHandler, resolvePackageDirectory } from './node.js'
 
 let base: string
 let root: string
@@ -61,5 +61,29 @@ describe('createStaticHandler', () => {
   it('answers 404 when the root does not exist', async () => {
     const handler = createStaticHandler({ root: join(base, 'nope') })
     expect((await handler(new Request('https://example.world/'))).status).toBe(404)
+  })
+})
+
+describe('createStaticHandler prefix', () => {
+  it('serves files only under the prefix', async () => {
+    const handler = createStaticHandler({ root, prefix: '/vendor/lib/', fallback: false })
+    const get = (path: string) => handler(new Request(`https://example.world${path}`))
+    expect((await get('/vendor/lib/app.js')).status).toBe(200)
+    expect((await get('/app.js')).status).toBe(404)
+    expect((await get('/vendor/libx/app.js')).status).toBe(404)
+    expect((await get('/vendor/lib/%2e%2e/secret.txt')).status).toBe(404)
+  })
+})
+
+describe('resolvePackageDirectory', () => {
+  it('finds an installed package folder', () => {
+    const lib = resolvePackageDirectory('typescript', 'lib', import.meta.url)
+    expect(lib.endsWith(join('typescript', 'lib'))).toBe(true)
+  })
+
+  it('explains a missing package or folder in plain words', () => {
+    expect(() => resolvePackageDirectory('worldkit-not-installed', '', import.meta.url)).toThrow(/npm install worldkit-not-installed/)
+    expect(() => resolvePackageDirectory('typescript', 'nope', import.meta.url)).toThrow(/no "nope" folder/)
+    expect(() => resolvePackageDirectory('typescript', '../..', import.meta.url)).toThrow(/outside package/)
   })
 })
