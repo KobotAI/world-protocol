@@ -60,6 +60,8 @@ Use these defaults when the brief asks for the experience in the first column, i
 | Drag and drop, drawing, swiping | Pointer events, no library | A button alternative for each gesture |
 | Photos of products or places | The image URLs in the data, with `loading="lazy"` and real `alt` text | A plain placeholder when an image fails |
 | Players, turns, scores, anything others see live | Level 2 (below) | Server-side rules; secrets never in public entities |
+| "Put our products in other games", "let other worlds use our items" | Publish assets (see [Sharing between worlds](#sharing-between-worlds)) | An image with alt text and a link back for every asset |
+| "Show partners' products in my game", "sell space", "up to 5 brands" | Host placements (same section) | An owner page to accept offers; a visible "Presented by" label |
 
 Serve a browser library from npm without a build step:
 
@@ -249,6 +251,48 @@ const results = await Promise.allSettled([
 ```
 
 `WorldClient` also has `invoke`, `startSession` and `subscribe` for Node scripts and tests. See the [Level 2 API reference](../reference/level-2-api.md) for the wire format and every error code.
+
+## Sharing between worlds
+
+Worlds can show each other's products and items. Build this when the brief asks for it in any words, as in the table above. Full formats: [Assets and placements](../reference/assets-and-placements.md).
+
+**Publishing (our things in other worlds).** Turn each thing the owner wants to share into an asset with `defineAsset` and add it to the world's entities. `defineWorld` then advertises `wp:assets`.
+
+```ts
+import { defineAsset } from '@worlddevkit/server'
+
+defineAsset({
+  id: 'asset-stove',
+  name: 'Eleven Gas Stove',
+  image: { url: `${WORLD_URL}/img/stove.png`, alt: 'A two-burner gas stove', width: 512, height: 512 },
+  web: 'https://kobotai.co/shop/nooreessentials/p/0055233b',  // where people see or buy the real thing
+  price: { amount: 1_800_000, currency: 'NGN' },              // optional, minor units
+  represents: { type: 'kobot:product', id: '0055233b' },      // optional link to the entity in this world
+})
+```
+
+- Every asset needs a real picture and alt text. If the data has no image, draw a simple one (SVG or PNG) and serve it from `public/`.
+- Use all the items the owner asked to share, and no others.
+- `hosts: 'any'` (the default) lets any world offer to show it. Use a list of origins if the owner wants to choose.
+
+**Hosting (other worlds' things in ours).** Add `placements` and an owner token:
+
+```ts
+export const world = defineWorld({
+  …,
+  adminToken: process.env.WORLD_ADMIN_TOKEN,   // never in code; see below
+  placements: { max: 5, accept: 'manual' },    // owner approves each one, at most 5 shown
+})
+// src/server.ts, after the server starts:
+const stopSync = world.placements!.startSync()   // keeps placements up to date, live
+```
+
+- **The owner token.** `defineWorld` refuses placements without one. Read it from `WORLD_ADMIN_TOKEN`, document it in `.env.example` with a placeholder, and explain in the README in plain words how to make one (a long random password) and set it. For local runs, `npm run dev` may generate one and print it once.
+- **An owner page.** Build a simple page, for example `#/owner`, that asks for the token once (keep it in `localStorage`) and calls `wp:placements` to list offers. Show each offer's picture, name, price and source world, with **Show it** (`wp:accept`, optionally with a `slot` such as which stall) and **Remove** (`wp:remove`) buttons. Explain refusals in plain words, such as `host_full`: "You're already showing 5. Remove one first."
+- **Showing placements.** Read `wp:placement` entities like any other, and listen for `entity.changed` and `entity.removed` so they update live. Always show "Presented by {source.worldName}". Put asset text in the page as text, never as HTML. Link `links.web` in a new tab with `rel="noopener noreferrer"`. In 3D, show the image on a sign or stall, and load a `glb` model only if one is given, with the image as the fallback. Images from other worlds may refuse to load as 3D textures; show the name on a plain sign then.
+- **Offering.** Any page can offer an asset to a host: start a session with the host world, then call its `wp:offer` with `{ asset: { world, id } }`. On a publisher's owner page, an "Offer to another world" form that takes the host's address does this from the browser.
+
+Test with `runAssetConformance({ world: discovery.id, fetch: fetchWorld })` from `@worlddevkit/testing`, alongside Level 1 and Level 2.
 
 ## Rules that must not break
 

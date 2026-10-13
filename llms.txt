@@ -35,5 +35,6 @@ The starter already works end to end: a website at `/`, the API, sample entities
 - No database, auth, Docker or cloud services unless the brief requires them.
 - The person may not be a developer: never ask technical questions; turn wishes ("3D", "like a game", "a map") into tools yourself (Three.js, an SVG map, Level 2); serve npm browser libraries with `resolvePackageDirectory` + `createStaticHandler({ prefix })`; report in plain words.
 - Check every screen at phone width in light and dark mode, with screenshots.
+- Sharing between worlds: publish products with `defineAsset` (image + alt + link back); host other worlds' assets with `placements: { max }` + `adminToken` from env, an owner page to accept offers, `world.placements.startSync()`, and a visible "Presented by" label. Test with `runAssetConformance`.
 - `WORLD_URL` is the public origin with no path; locally it follows `PORT`.
 - Report what you built, files changed, the commands you actually ran and their results, what you could not verify, and what Level 1 could not do.
