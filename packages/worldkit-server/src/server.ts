@@ -54,6 +54,12 @@ export interface WorldHandlerOptions {
   events?: EventHub
   /** Rate limiter for Level 2 actions, keyed per caller (or per client without a session). Defaults to `rateLimiter`. */
   actionRateLimiter?: RateLimiter
+  /**
+   * Rate limiter for new sessions (`wp:session`), keyed per client address. Kept separate and
+   * tighter than actions, because every session is a fresh player: without it one client can mint
+   * players to get around per-player rules. Defaults to `actionRateLimiter`.
+   */
+  sessionRateLimiter?: RateLimiter
 }
 
 export const DEFAULT_SEARCH_FIELDS: readonly string[] = ['name', 'description', 'tagline', 'category']
@@ -105,8 +111,12 @@ export function createWorldHandler(options: WorldHandlerOptions): (request: Requ
       if (request.method === 'POST' && path[0] === 'actions' && path.length === 2 && path[1]) {
         if (!options.actions) return errorResponse(404, 'unknown_action', `Unknown action: ${path[1]}`, cors)
         const caller = options.actions.callerFor(request)
-        const limiter = options.actionRateLimiter ?? options.rateLimiter
-        const limited = await limiter.consume(caller ? `action:${caller.id}` : `action:${rateLimitKey(request, options)}`)
+        const isSession = path[1] === 'wp:session'
+        const limiter = (isSession ? options.sessionRateLimiter : undefined) ?? options.actionRateLimiter ?? options.rateLimiter
+        const key = isSession
+          ? `session:${rateLimitKey(request, options)}`
+          : caller ? `action:${caller.id}` : `action:${rateLimitKey(request, options)}`
+        const limited = await limiter.consume(key)
         if (!limited.allowed) {
           const headers = new Headers(cors)
           headers.set('Retry-After', String(limited.retryAfterSeconds ?? 60))

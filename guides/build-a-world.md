@@ -29,7 +29,7 @@ Pick the level from the brief. If it does not mention people changing anything, 
 
 Stay inside this budget unless the brief asks for more:
 
-- 2–4 entity types and 15–40 entities in total, with real relationships between them.
+- 2–4 entity types and 15–40 entities in total, with real relationships between them. This budget is for content you write yourself. When the brief supplies data, use all of it that fits the brief rather than a sample; the API pages through any amount.
 - One primary explore view designed for the domain (map, graph, timeline, scene, catalog, or similar), one list/search view, and one entity detail view.
 - No database, authentication, Docker or cloud services. Demo data lives in the repository.
 
@@ -152,7 +152,8 @@ export const world = defineWorld({
 
 How it works:
 
-- **Every action needs a session** unless you set `requiresCaller: false`. The browser calls `wp:session` once, keeps the token in `sessionStorage`, and sends it as `Authorization: Bearer <token>`. `caller.id` is stable for that session; use it as the player's entity ID.
+- **Every action needs a session** unless you set `requiresCaller: false`. The browser calls `wp:session` once, keeps the token, and sends it as `Authorization: Bearer <token>`. `caller.id` is stable for that session; use it as the player's entity ID. Keep the token in `localStorage` if players should still be themselves after closing the tab (most games), or `sessionStorage` if each tab is a separate player.
+- **Sessions are anonymous and cheap.** Anyone can open several, so any per-player limit (guesses per round, a starting balance) can be multiplied by opening more. The kit limits new sessions to 10 a minute per address; design rules so extra players do not pay off, for example costs that never drop to zero, or rewards that need wins rather than attempts.
 - **Capabilities say what is possible now.** If an action has a `target`, the kit refuses it (403) unless the target's `capabilities` include the action. Update capabilities as the state changes, as `game:claim` does above.
 - **Versions stop two players winning the same thing.** The browser sends the `version` it is showing as `ifVersion`; if someone got there first, the kit answers `409 version_conflict` with the current entity, and the browser shows what happened. Actions also run one at a time, so read-then-write inside a handler is safe even across `await`.
 - **Refuse by the rules with `ActionError(code, message)`** (HTTP 422 by default). Never let a rule violation throw a plain `Error`, which becomes a 503.

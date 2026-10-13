@@ -30,7 +30,7 @@ POST {api}/actions/wp%3Asession
 → 200 { "output": { "token": "…", "caller": "c_…", "expiresAt": "2026-10-14T…Z" }, "changed": [], "removed": [] }
 ```
 
-Send the token as `Authorization: Bearer <token>` on later actions. The world identifies the caller by it. Actions require a session unless the world says otherwise. A session is anonymous: it says "the same caller as before", not who the person is.
+Send the token as `Authorization: Bearer <token>` on later actions. New sessions are rate-limited per client address (10 a minute by default in the reference server), separately from actions. The world identifies the caller by it. Actions require a session unless the world says otherwise. A session is anonymous: it says "the same caller as before", not who the person is.
 
 ## Actions
 

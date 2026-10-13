@@ -195,6 +195,22 @@ describe('Level 2 actions', () => {
   })
 })
 
+describe('Level 2 session limits', () => {
+  it('limits new sessions per client address, separately from actions', async () => {
+    const world = plotsWorld()
+    const burst = await Promise.all(Array.from({ length: 12 }, () => world.fetch(`${base}/api/world/v0/actions/wp%3Asession`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' }, body: '{}',
+    })))
+    const statuses = burst.map((response) => response.status)
+    expect(statuses.filter((status) => status === 200)).toHaveLength(10)
+    expect(statuses.filter((status) => status === 429)).toHaveLength(2)
+    const other = await world.fetch(`${base}/api/world/v0/actions/wp%3Asession`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.2' }, body: '{}',
+    })
+    expect(other.status).toBe(200)
+  })
+})
+
 describe('Level 2 events', () => {
   async function readEvents(response: Response, count: number) {
     const reader = response.body!.getReader()

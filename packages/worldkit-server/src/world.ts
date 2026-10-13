@@ -84,6 +84,8 @@ export interface DefineWorldOptions {
   sessions?: SessionStore
   /** Level 2: rate limit for actions, per session. Defaults to 120 actions a minute. */
   actionRateLimiter?: RateLimiter
+  /** Level 2: rate limit for new sessions, per client address. Defaults to 10 a minute. */
+  sessionRateLimiter?: RateLimiter
 }
 
 export interface DefinedWorld {
@@ -204,6 +206,7 @@ export function defineWorld(options: DefineWorldOptions): DefinedWorld {
           actions: dispatcher,
           events: hub,
           actionRateLimiter: options.actionRateLimiter ?? createMemoryRateLimiter({ limit: 120, windowMs: 60_000 }),
+          sessionRateLimiter: options.sessionRateLimiter ?? createMemoryRateLimiter({ limit: 10, windowMs: 60_000 }),
         }
       : {}),
   })
