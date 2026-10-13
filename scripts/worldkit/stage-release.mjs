@@ -79,6 +79,16 @@ await Promise.all([
   writeFile(resolve(cliTargetDirectory, 'package.json'), `${JSON.stringify(cliManifest, null, 2)}\n`),
 ])
 
+// The starter must depend on the packages released alongside it, whatever the source template says.
+const templateManifestPath = resolve(cliTargetDirectory, 'template', 'package.json')
+const templateManifest = JSON.parse(await readFile(templateManifestPath, 'utf8'))
+for (const section of ['dependencies', 'devDependencies']) {
+  for (const name of Object.keys(templateManifest[section] ?? {})) {
+    if (internalNames.has(name)) templateManifest[section][name] = `^${version}`
+  }
+}
+await writeFile(templateManifestPath, `${JSON.stringify(templateManifest, null, 2)}\n`)
+
 console.log(`Staged WorldKit ${version} in ${outputRoot}`)
 
 function rewriteDependencies(dependencies, releaseVersion) {

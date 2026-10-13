@@ -1,6 +1,6 @@
 # `create-worlddevkit`
 
-Dependency-free initializer for a credential-free, database-free, Docker-free World Protocol Level 1 TypeScript server.
+Dependency-free initializer for a credential-free, database-free, Docker-free World Protocol Level 1 world: a website and its API in one TypeScript project.
 
 ## Usage
 
@@ -17,7 +17,12 @@ Or invoke the executable directly:
 create-worlddevkit my-world
 ```
 
-The generated starter uses the published `@worlddevkit/server`, `@worlddevkit/spec`, `@worlddevkit/client`, and `@worlddevkit/testing` packages at `^0.1.1`. It exposes `/.well-known/world.json`, the Level 1 API under `/api/world/v0`, and in-memory `wp:place` entities.
+The generated starter depends on the `@worlddevkit/server`, `@worlddevkit/spec`, `@worlddevkit/client`, and `@worlddevkit/testing` packages released alongside this CLI. It runs immediately and includes:
+
+- a website at `/` (plain HTML, CSS and JavaScript in `public/`) with search, filtering and entity detail pages, reading its data through the API;
+- `/.well-known/world.json` and the Level 1 API under `/api/world/v0`;
+- sample `wp:place` entities in `src/data.ts`, the single source of truth for both;
+- conformance, data-integrity and website tests, and an `AGENTS.md` guide for coding agents.
 
 ## Options
 

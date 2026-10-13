@@ -52,7 +52,7 @@ export function createWorldHandler(options: WorldHandlerOptions): (request: Requ
       }
       if (request.method === 'GET' && path[0] === 'entities' && path.length === 3) {
         const entity = await options.source.get(path[1] ?? '', path[2] ?? '')
-        return entity ? json(entity, 200, cors) : errorResponse(404, 'entity_not_found', 'Entity not found', cors)
+        return entity && isPublic(entity) ? json(entity, 200, cors) : errorResponse(404, 'entity_not_found', 'Entity not found', cors)
       }
       const isDiscoverAlias = path[0] === 'discover' && path.length === 1 && (request.method === 'GET' || request.method === 'POST')
       const isDiscoverAction = path[0] === 'actions' && path[1] === 'wp:discover' && path.length === 2 && request.method === 'POST'
@@ -87,7 +87,7 @@ async function listEntities(
   headers: Headers
 ): Promise<Response> {
   if (!options.world.entityTypes.includes(type)) return errorResponse(404, 'unknown_entity_type', `Unknown entity type: ${type}`, headers)
-  const all = await options.source.list(type)
+  const all = (await options.source.list(type)).filter(isPublic)
   const page = paginate(all, url.searchParams.get('cursor'), pageSize(url.searchParams.get('limit'), options.maxPageSize))
   return json(page, 200, headers)
 }
@@ -103,7 +103,7 @@ async function discover(
   const collections = await Promise.all(knownTypes.map((type) => options.source.list(type)))
   const text = query.text?.trim().toLocaleLowerCase()
   const category = query.category?.trim().toLocaleLowerCase()
-  const matches = collections.flat().filter((entity) => {
+  const matches = collections.flat().filter(isPublic).filter((entity) => {
     const attributes = entity.attributes as JsonObject
     if (query.layer && entity.layer !== query.layer) return false
     if (category && String(attributes.category ?? '').toLocaleLowerCase() !== category) return false
@@ -113,6 +113,15 @@ async function discover(
   })
   const result: DiscoverResult = paginate(matches, query.cursor ?? null, clampLimit(query.limit, options.maxPageSize))
   return json(wrapAsActionOutput ? { output: result } : result, 200, headers)
+}
+
+/**
+ * Level 1 is an anonymous, public-read surface. Entities a source returns with `connections`
+ * or `private` visibility are never served: lists and discovery skip them and `get` answers 404,
+ * exactly as if the entity did not exist.
+ */
+function isPublic(entity: EntityEnvelope): boolean {
+  return entity.visibility === 'public'
 }
 
 function paginate<T extends EntityEnvelope>(entities: readonly T[], cursor: string | null, limit: number): PaginatedEntityCollection {

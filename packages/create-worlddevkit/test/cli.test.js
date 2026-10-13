@@ -54,7 +54,7 @@ test('generates a complete starter, including dotfiles, without installing depen
   assert.match(result.stdout, /Created places-world/)
   assert.deepEqual(
     (await readdir(project)).sort(),
-    ['.env.example', '.gitignore', 'AGENTS.md', 'README.md', 'package.json', 'src', 'test', 'tsconfig.json'],
+    ['.env.example', '.gitignore', 'AGENTS.md', 'README.md', 'package.json', 'public', 'src', 'test', 'tsconfig.json'],
   )
 
   const manifest = JSON.parse(await readFile(join(project, 'package.json'), 'utf8'))
@@ -66,19 +66,22 @@ test('generates a complete starter, including dotfiles, without installing depen
     dev: 'tsx watch src/server.ts',
     build: 'tsc -p tsconfig.json',
     typecheck: 'tsc --noEmit -p tsconfig.json',
-    test: 'npm run build --silent && node --test dist/test/conformance.test.js',
+    test: 'npm run build --silent && node --test dist/test/conformance.test.js dist/test/site.test.js',
     conformance: 'npm run build --silent && node --test dist/test/conformance.test.js',
   })
-  assert.equal(manifest.dependencies['@worlddevkit/client'], '^0.1.1')
-  assert.equal(manifest.dependencies['@worlddevkit/server'], '^0.1.1')
-  assert.equal(manifest.dependencies['@worlddevkit/spec'], '^0.1.1')
-  assert.equal(manifest.devDependencies['@worlddevkit/testing'], '^0.1.1')
+  assert.equal(manifest.dependencies['@worlddevkit/client'], '^0.2.0')
+  assert.equal(manifest.dependencies['@worlddevkit/server'], '^0.2.0')
+  assert.equal(manifest.dependencies['@worlddevkit/spec'], '^0.2.0')
+  assert.equal(manifest.devDependencies['@worlddevkit/testing'], '^0.2.0')
   assert.equal(manifest.dependencies.length, undefined)
 
   assert.match(await readFile(join(project, '.env.example'), 'utf8'), /^HOST=.*\nPORT=.*\nWORLD_URL=.*\n$/)
   assert.match(await readFile(join(project, '.gitignore'), 'utf8'), /^node_modules\//m)
-  assert.match(await readFile(join(project, 'src', 'world.ts'), 'utf8'), /\.well-known\/world\.json/)
-  assert.match(await readFile(join(project, 'src', 'world.ts'), 'utf8'), /wp:place/)
+  assert.match(await readFile(join(project, 'src', 'world.ts'), 'utf8'), /defineWorld/)
+  assert.match(await readFile(join(project, 'src', 'data.ts'), 'utf8'), /wp:place/)
+  assert.match(await readFile(join(project, 'src', 'app.ts'), 'utf8'), /createStaticHandler/)
+  assert.match(await readFile(join(project, 'public', 'index.html'), 'utf8'), /<script type="module" src="\/app\.js">/)
+  assert.match(await readFile(join(project, 'test', 'site.test.ts'), 'utf8'), /handleRequest/)
   assert.match(await readFile(join(project, 'test', 'conformance.test.ts'), 'utf8'), /assertLevel1Conformance/)
   await assert.rejects(readFile(join(project, 'package-lock.json')), { code: 'ENOENT' })
   await assert.rejects(readFile(join(project, 'node_modules')), { code: 'ENOENT' })

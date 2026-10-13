@@ -2,7 +2,7 @@
   "name": "worlddevkit-starter",
   "version": "0.1.0",
   "private": true,
-  "description": "A World Protocol Level 1 world built with WorldDevKit.",
+  "description": "A World Protocol Level 1 world, with its website, built with WorldDevKit.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -12,17 +12,17 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build --silent && node --test dist/test/conformance.test.js",
+    "test": "npm run build --silent && node --test dist/test/conformance.test.js dist/test/site.test.js",
     "conformance": "npm run build --silent && node --test dist/test/conformance.test.js"
   },
   "dependencies": {
-    "@worlddevkit/client": "^0.1.1",
-    "@worlddevkit/server": "^0.1.1",
-    "@worlddevkit/spec": "^0.1.1"
+    "@worlddevkit/client": "^0.2.0",
+    "@worlddevkit/server": "^0.2.0",
+    "@worlddevkit/spec": "^0.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@worlddevkit/testing": "^0.1.1",
+    "@worlddevkit/testing": "^0.2.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }

@@ -51,6 +51,7 @@ The Level 1 checks cover:
 - public-read CORS
 - `wp:discover`
 - advertised entity-type boundaries
+- public visibility only: no `connections` or `private` entity is served
 
 The target must advertise at least one entity type and `wp:discover`. Set `pageSize`, `maxPagesPerType`, or `corsOrigin` through the optional second argument.
 

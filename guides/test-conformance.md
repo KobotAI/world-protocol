@@ -1,6 +1,6 @@
 # Test conformance
 
-`@worlddevkit/testing` checks that an implementation satisfies World Protocol Level 1 discovery, entity-read, pagination, action, CORS and error contracts.
+`@worlddevkit/testing` checks that an implementation satisfies World Protocol Level 1 discovery, entity-read, pagination, action, CORS, visibility and error contracts.
 
 ```sh
 npm install --save-dev @worlddevkit/testing

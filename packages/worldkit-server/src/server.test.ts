@@ -110,3 +110,39 @@ describe('createWorldHandler', () => {
     await expect(invalidAction.json()).resolves.toMatchObject({ code: 'invalid_input' })
   })
 })
+
+describe('createWorldHandler visibility', () => {
+  const mixed: EntityEnvelope[] = [
+    { ...stores[0]!, ref: { ...stores[0]!.ref, id: 'open' } },
+    { ...stores[0]!, ref: { ...stores[0]!.ref, id: 'friends' }, visibility: 'connections', attributes: { name: 'Friends Only' } },
+    { ...stores[0]!, ref: { ...stores[0]!.ref, id: 'secret' }, visibility: 'private', attributes: { name: 'Secret Stash' } },
+  ]
+  const mixedSource: EntitySource = {
+    async list(type) {
+      return type === 'wp:store' ? mixed : []
+    },
+    async get(type, id) {
+      return mixed.find((entity) => entity.ref.type === type && entity.ref.id === id) ?? null
+    },
+  }
+
+  it('lists only public entities', async () => {
+    const response = await handler({ source: mixedSource })(new Request('https://example.world/api/world/v0/entities/wp%3Astore'))
+    const body = await response.json() as { entities: EntityEnvelope[] }
+    expect(body.entities.map((entity) => entity.ref.id)).toEqual(['open'])
+  })
+
+  it('answers 404 for non-public entities', async () => {
+    for (const id of ['friends', 'secret']) {
+      const response = await handler({ source: mixedSource })(new Request(`https://example.world/api/world/v0/entities/wp%3Astore/${id}`))
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toMatchObject({ code: 'entity_not_found' })
+    }
+  })
+
+  it('never returns non-public entities from discovery', async () => {
+    const response = await handler({ source: mixedSource })(new Request('https://example.world/api/world/v0/discover?text=s'))
+    const body = await response.json() as { entities: EntityEnvelope[] }
+    expect(body.entities.every((entity) => entity.visibility === 'public')).toBe(true)
+  })
+})

@@ -105,7 +105,7 @@ describe('Level 1 conformance runner', () => {
 
     expect(report.passed).toBe(true)
     expect(report.protocol).toBe('world/0.1')
-    expect(report.checks).toHaveLength(8)
+    expect(report.checks).toHaveLength(9)
     expect(report.checks.every((check) => check.passed)).toBe(true)
   })
 
@@ -120,6 +120,20 @@ describe('Level 1 conformance runner', () => {
     expect(report.checks.find((check) => check.name === 'no-unadvertised-entity-types')).toMatchObject({
       passed: false,
       error: 'Response exposed unadvertised entity type: wp:hidden',
+    })
+  })
+
+  it('fails when a non-public entity is served', async () => {
+    const leaked: EntityEnvelope = { ...entity('wp:place', 'place-secret', 'Back Office'), visibility: 'private' }
+    const report = await runLevel1Conformance({
+      world: world.id,
+      fetch: fixtureFetch({ discoverEntity: leaked }),
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.checks.find((check) => check.name === 'public-visibility-only')).toMatchObject({
+      passed: false,
+      error: 'Level 1 is public-read only, but wp:place/place-secret was served with visibility "private"',
     })
   })
 
